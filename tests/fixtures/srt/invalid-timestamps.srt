@@ -1,0 +1,19 @@
+1
+00:65:01,000 --> 00:65:03,000
+Invalid minutes (>59).
+
+2
+00:00:10,000 --> 00:00:05,000
+End precedes start.
+
+3
+-00:00:01,000 --> 00:00:02,000
+Negative start timestamp.
+
+4
+00:00:12,000 --> 00:00:12,000
+Zero duration cue.
+
+5
+00:00:15,000 --> 00:00:18,000
+Valid cue after invalid ones.

@@ -1,0 +1,29 @@
+{
+  "name": "@subtitleme/chrome-extension",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build && vite build --config vite.content.config.ts",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@subtitleme/shared-types": "workspace:*",
+    "@subtitleme/subtitle-core": "workspace:*",
+    "@subtitleme/subtitle-parser": "workspace:*",
+    "@subtitleme/subtitle-renderer": "workspace:*",
+    "@subtitleme/subtitle-storage": "workspace:*",
+    "@subtitleme/subtitle-sync": "workspace:*",
+    "pinia": "^4.1.0",
+    "vue": "^3.5.46"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/chrome": "^0.3.7",
+    "@vitejs/plugin-vue": "^6.0.11",
+    "tailwindcss": "^4.3.5",
+    "vite": "^8.3.8",
+    "vue-tsc": "^3.3.14"
+  }
+}

@@ -1,0 +1,10 @@
+1
+00:00:01,000 --> 00:00:04,250
+First line of dialogue.
+Second line of dialogue.
+Third line for emphasis.
+
+2
+00:00:05,000 --> 00:00:08,500
+- Are you ready?
+- Always ready.

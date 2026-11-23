@@ -1,0 +1,17 @@
+WEBVTT - Sample Metadata Header
+Kind: captions
+Language: en
+
+STYLE
+::cue {
+  color: #F4F5FA;
+}
+
+REGION
+id:top-bar
+width:80%
+lines:2
+
+cue-meta
+00:00:01.200 --> 00:00:04.800 align:start position:10% line:85%
+Cue with settings, style, and region metadata.

@@ -1,0 +1,9 @@
+WEBVTT
+
+1
+00:00:01.000 --> 00:00:03.500
+<v Alice><c.loud>Hello</c> <00:00:02.000><i>world</i>!</v>
+
+2
+00:00:04.000 --> 00:00:06.500
+A &amp; B &lt;img src=x onerror=alert(1)&gt; <script>evil()</script>clean

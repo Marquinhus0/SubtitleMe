@@ -1,0 +1,11 @@
+1
+00:00:01,000 --> 00:00:03,000
+<i>Whispered</i> and <b>bold</b> with <font color="#ffcc00">color</font>.
+
+2
+00:00:03,500 --> 00:00:06,000
+{\an8}Tom &amp; Jerry &mdash; &quot;Classic&quot; &lt;3
+
+3
+00:00:06,500 --> 00:00:09,000
+Safe text <script>alert('xss')</script> remains clean.

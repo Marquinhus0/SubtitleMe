@@ -1,0 +1,10 @@
+WEBVTT
+
+NOTE This is a single-line comment block.
+
+NOTE
+This is a multi-line comment
+that must be ignored by the cue output.
+
+00:00:02.000 --> 00:00:04.000
+Visible cue after NOTE blocks.

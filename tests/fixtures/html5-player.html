@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SubtitleMe — Controlled HTML5 Player Test Harness</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #0b0d12;
+        color: #f4f5fa;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      .player-outer {
+        width: 720px;
+        max-width: 100%;
+      }
+      .player-shell {
+        position: relative;
+        width: 100%;
+        background: #000;
+        border: 1px solid #282f3d;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      video {
+        display: block;
+        width: 100%;
+        height: 405px;
+        background: #111520;
+      }
+      .controls {
+        margin-top: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      button {
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: 1px solid #282f3d;
+        background: #1c2230;
+        color: #f4f5fa;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>SubtitleMe — Controlled HTML5 Video Test Harness</h1>
+
+    <div id="outer-wrapper" class="player-outer">
+      <div id="primary-player-container" class="player-shell">
+        <video
+          id="primary-video"
+          src="/sample-video.webm"
+          controls
+          muted
+          playsinline
+          preload="auto"
+          width="720"
+          height="405"
+        >
+          <track id="en-track" kind="subtitles" srclang="en" label="English" />
+          <track id="pt-track" kind="subtitles" srclang="pt-BR" label="Português (Brasil)" />
+        </video>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="btn-seek-early" type="button">Seek 0.5s</button>
+      <button id="btn-seek-late" type="button">Seek 2.0s</button>
+      <button id="btn-speed-2x" type="button">Speed 2x</button>
+      <button id="btn-fullscreen-container" type="button">Fullscreen Container</button>
+      <button id="btn-add-video" type="button">Add Extra Video</button>
+      <button id="btn-remove-video" type="button">Remove Last Extra Video</button>
+    </div>
+
+    <div id="extra-videos"></div>
+
+    <script>
+      const enVtt = `WEBVTT
+
+1
+00:00:00.100 --> 00:00:01.400
+Two languages. One experience.
+
+2
+00:00:01.600 --> 00:00:03.000
+Synchronized dual subtitles in Chrome.
+`;
+      const ptVtt = `WEBVTT
+
+1
+00:00:00.100 --> 00:00:01.400
+Dois idiomas. Uma experiência.
+
+2
+00:00:01.600 --> 00:00:03.000
+Legendas duplas sincronizadas no Chrome.
+`;
+
+      document.getElementById('en-track').src = URL.createObjectURL(
+        new Blob([enVtt], { type: 'text/vtt' }),
+      );
+      document.getElementById('pt-track').src = URL.createObjectURL(
+        new Blob([ptVtt], { type: 'text/vtt' }),
+      );
+
+      const primaryVideo = document.getElementById('primary-video');
+      const container = document.getElementById('primary-player-container');
+
+      document.getElementById('btn-seek-early').addEventListener('click', () => {
+        primaryVideo.currentTime = 0.5;
+      });
+      document.getElementById('btn-seek-late').addEventListener('click', () => {
+        primaryVideo.currentTime = 2.0;
+      });
+      document.getElementById('btn-speed-2x').addEventListener('click', () => {
+        primaryVideo.playbackRate = 2;
+      });
+      document.getElementById('btn-fullscreen-container').addEventListener('click', () => {
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else {
+          container.requestFullscreen();
+        }
+      });
+
+      let extraCount = 0;
+      document.getElementById('btn-add-video').addEventListener('click', () => {
+        extraCount += 1;
+        const slot = document.getElementById('extra-videos');
+        const shell = document.createElement('div');
+        shell.className = 'player-shell extra-player-shell';
+        shell.id = `extra-player-container-${extraCount}`;
+        shell.style.marginTop = '12px';
+        shell.style.width = '480px';
+        const vid = document.createElement('video');
+        vid.id = `extra-video-${extraCount}`;
+        vid.src = '/sample-video.webm';
+        vid.controls = true;
+        vid.muted = true;
+        vid.width = 480;
+        vid.height = 270;
+        shell.appendChild(vid);
+        slot.appendChild(shell);
+      });
+
+      document.getElementById('btn-remove-video').addEventListener('click', () => {
+        const shells = document.querySelectorAll('.extra-player-shell');
+        const last = shells[shells.length - 1];
+        if (last) last.remove();
+      });
+    </script>
+  </body>
+</html>

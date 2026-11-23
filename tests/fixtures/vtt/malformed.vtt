@@ -1,0 +1,12 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+Valid cue before corruption.
+
+Broken block without timing syntax
+
+00:00:04.000 --> 00:00:02.000
+Invalid reverse timestamps.
+
+00:00:05.000 --> 00:00:07.000
+Valid cue recovered after errors.

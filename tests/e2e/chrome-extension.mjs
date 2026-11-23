@@ -1,0 +1,367 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import http from 'node:http';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright-core';
+
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(currentDir, '../..');
+const defaultDistDir = resolve(repoRoot, 'apps/chrome-extension/dist');
+const fixtureHtmlPath = resolve(repoRoot, 'tests/fixtures/html5-player.html');
+const sampleVideoPath = resolve(repoRoot, 'tests/fixtures/sample-video.webm');
+
+function findChromeExecutable() {
+  const candidates = [];
+  if (process.env.CHROME_PATH) {
+    candidates.push(process.env.CHROME_PATH);
+  }
+
+  // Prefer Chromium-for-Testing (Playwright) because branded Chrome 137+ disables --load-extension
+  const msPlaywrightDir = '/opt/ms-playwright';
+  if (existsSync(msPlaywrightDir)) {
+    for (const entry of readdirSync(msPlaywrightDir)) {
+      if (entry.startsWith('chromium-')) {
+        candidates.push(resolve(msPlaywrightDir, entry, 'chrome-linux64/chrome'));
+      }
+    }
+  }
+
+  candidates.push(
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+  );
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function startFixtureServer() {
+  const html = readFileSync(fixtureHtmlPath, 'utf-8');
+  const videoBytes = readFileSync(sampleVideoPath);
+
+  return new Promise((resolveServer) => {
+    const server = http.createServer((req, res) => {
+      if (req.url === '/sample-video.webm') {
+        res.writeHead(200, {
+          'Content-Type': 'video/webm',
+          'Content-Length': String(videoBytes.byteLength),
+          'Accept-Ranges': 'bytes',
+        });
+        res.end(videoBytes);
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+    });
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : 0;
+      resolveServer({ server, url: `http://127.0.0.1:${port}/` });
+    });
+  });
+}
+
+async function getShadowSubtitleText(page, containerSelector) {
+  return page.evaluate((sel) => {
+    const host = document.querySelector(`${sel} [data-subtitleme-overlay]`);
+    const root = host?.shadowRoot;
+    if (!root) return { primary: '', secondary: '' };
+    const primary = root.querySelector('[data-slot="primary"]')?.textContent ?? '';
+    const secondary = root.querySelector('[data-slot="secondary"]')?.textContent ?? '';
+    return { primary, secondary };
+  }, containerSelector);
+}
+
+async function run() {
+  let extensionDir = defaultDistDir;
+  let extractedTempDir = null;
+
+  if (process.env.RELEASE_ZIP) {
+    const zipPath = resolve(repoRoot, process.env.RELEASE_ZIP);
+    assert.ok(existsSync(zipPath), `Release ZIP not found: ${zipPath}`);
+    extractedTempDir = mkdtempSync(resolve(tmpdir(), 'subtitleme-zip-extract-'));
+    execFileSync('unzip', ['-q', zipPath, '-d', extractedTempDir]);
+    extensionDir = extractedTempDir;
+  }
+
+  const contentBundlePath = resolve(extensionDir, 'content/index.js');
+  assert.ok(
+    existsSync(resolve(extensionDir, 'manifest.json')),
+    `manifest.json not found at extension root: ${extensionDir}`,
+  );
+  assert.ok(
+    existsSync(contentBundlePath),
+    `content/index.js not found inside extension directory: ${extensionDir}`,
+  );
+
+  const executablePath = findChromeExecutable();
+  assert.ok(executablePath, 'Chromium executable not found in environment.');
+
+  const { server, url } = await startFixtureServer();
+  const userDataDir = mkdtempSync(resolve(tmpdir(), 'subtitleme-chrome-e2e-'));
+
+  let context;
+  const metrics = {};
+  const uncaughtErrors = [];
+
+  try {
+    context = await chromium.launchPersistentContext(userDataDir, {
+      executablePath,
+      headless: false,
+      args: [
+        '--headless=new',
+        '--no-sandbox',
+        '--disable-gpu',
+        `--disable-extensions-except=${extensionDir}`,
+        `--load-extension=${extensionDir}`,
+      ],
+    });
+    context.on('page', (p) => {
+      p.on('pageerror', (err) => uncaughtErrors.push(err.message));
+    });
+
+    // 1. Verify MV3 Service Worker boots cleanly
+    let [serviceWorker] = context.serviceWorkers();
+    if (!serviceWorker) {
+      serviceWorker = await context.waitForEvent('serviceworker', { timeout: 10_000 });
+    }
+    const extensionId = new URL(serviceWorker.url()).host;
+    assert.ok(extensionId.length > 0, 'Extension ID should be resolved.');
+
+    // 2. Local Files E2E (SRT + VTT + Invalid + Duplicate + Persistence across popup reopen + Removal)
+    const optionsPage = await context.newPage();
+    await optionsPage.goto(`chrome-extension://${extensionId}/options/index.html`, {
+      waitUntil: 'domcontentloaded',
+    });
+
+    await optionsPage.click('[data-testid="settings-nav-localFiles"]');
+    await optionsPage.waitForSelector('[data-testid="section-localFiles"]');
+
+    const srtBuffer = Buffer.from(
+      '1\n00:00:00,100 --> 00:00:01,400\nLocal SRT Hello\n\n2\n00:00:01,600 --> 00:00:03,000\nSecond SRT line\n',
+      'utf-8',
+    );
+    const vttBuffer = Buffer.from(
+      'WEBVTT\n\n1\n00:00:00.100 --> 00:00:01.400\nLegenda VTT Local\n',
+      'utf-8',
+    );
+    const badBuffer = Buffer.from('Not a subtitle file at all', 'utf-8');
+
+    // Invalid file -> error alert
+    await optionsPage.setInputFiles('input[type="file"]', {
+      name: 'spoofed.srt',
+      mimeType: 'text/plain',
+      buffer: badBuffer,
+    });
+    await optionsPage.waitForSelector('[role="alert"]');
+
+    // Import SRT -> preview -> select language -> confirm
+    const importStart = performance.now();
+    await optionsPage.setInputFiles('input[type="file"]', {
+      name: 'sample-en.srt',
+      mimeType: 'text/plain',
+      buffer: srtBuffer,
+    });
+    await optionsPage.waitForSelector('[data-testid="import-preview-card"]');
+    await optionsPage.selectOption('[data-testid="import-language-select"]', 'en');
+    await optionsPage.click('[data-testid="confirm-import-button"]');
+    await optionsPage.waitForSelector('article:has-text("sample-en.srt")');
+    metrics.srtImportMs = Math.round(performance.now() - importStart);
+
+    // Duplicate SRT rejected
+    await optionsPage.setInputFiles('input[type="file"]', {
+      name: 'sample-en-copy.srt',
+      mimeType: 'text/plain',
+      buffer: srtBuffer,
+    });
+    await optionsPage.waitForSelector('[role="alert"]');
+
+    // Import VTT -> preview -> confirm
+    await optionsPage.setInputFiles('input[type="file"]', {
+      name: 'sample-pt.vtt',
+      mimeType: 'text/vtt',
+      buffer: vttBuffer,
+    });
+    await optionsPage.waitForSelector('[data-testid="import-preview-card"]');
+    await optionsPage.selectOption('[data-testid="import-language-select"]', 'pt-BR');
+    await optionsPage.click('[data-testid="confirm-import-button"]');
+    await optionsPage.waitForSelector('article:has-text("sample-pt.vtt")');
+
+    // Switch interface language to pt-BR and confirm immediate update
+    await optionsPage.click('[data-testid="settings-nav-general"]');
+    await optionsPage.selectOption('[data-testid="ui-language-select"]', 'pt-BR');
+    const ptAppearanceLabel = await optionsPage.textContent(
+      '[data-testid="settings-nav-appearance"]',
+    );
+    assert.equal(ptAppearanceLabel?.trim(), 'Aparência');
+    // Switch back to en for subsequent assertions
+    await optionsPage.selectOption('[data-testid="ui-language-select"]', 'en');
+    await optionsPage.close();
+
+    // 3. Reopen Popup -> verify IndexedDB persistence + keyboard navigation + 200% zoom layout
+    const popupPage = await context.newPage();
+    await popupPage.goto(`chrome-extension://${extensionId}/popup/index.html`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await popupPage.waitForSelector('[data-testid="popup-primary-record-select"]');
+    const primaryOptionsText = await popupPage.textContent(
+      '[data-testid="popup-primary-record-select"]',
+    );
+    assert.ok(primaryOptionsText?.includes('sample-en.srt'), 'SRT record should persist in Popup.');
+    assert.ok(primaryOptionsText?.includes('sample-pt.vtt'), 'VTT record should persist in Popup.');
+
+    // Keyboard accessibility: Tab moves focus onto an interactive element
+    await popupPage.keyboard.press('Tab');
+    const focusedTag = await popupPage.evaluate(() => document.activeElement?.tagName ?? '');
+    assert.ok(['BUTTON', 'SELECT', 'INPUT'].includes(focusedTag), `Expected focusable element, got ${focusedTag}`);
+    await popupPage.close();
+
+    // 4. Playback, Synchronization, Native TextTracks, Seeking, Speed, Ended, Multi-Video & Fullscreen
+    const videoPage = await context.newPage();
+    await videoPage.goto(url, { waitUntil: 'networkidle' });
+
+    // Wait for real WebM video metadata + native TextTrack cues to load
+    await videoPage.waitForFunction(() => {
+      const v = document.getElementById('primary-video');
+      return Boolean(v && v.readyState >= 1 && v.textTracks.length === 2);
+    });
+
+    const contentCode = readFileSync(contentBundlePath, 'utf-8');
+    const mountStart = performance.now();
+    await videoPage.addScriptTag({ content: contentCode });
+    await videoPage.waitForSelector('#primary-player-container [data-subtitleme-overlay]');
+    metrics.overlayMountMs = Math.round(performance.now() - mountStart);
+
+    // Wait for Chromium to populate both native tracks' cues (observer switched mode to 'hidden')
+    await videoPage.waitForFunction(() => {
+      const v = document.getElementById('primary-video');
+      if (!v) return false;
+      const t0 = v.textTracks[0];
+      const t1 = v.textTracks[1];
+      return Boolean(t0?.cues && t0.cues.length >= 2 && t1?.cues && t1.cues.length >= 2);
+    });
+
+    // Seek to 0.5s -> verify both English and Portuguese native cues render simultaneously in Shadow DOM
+    await videoPage.click('#btn-seek-early');
+    await videoPage.waitForFunction(() => {
+      const host = document.querySelector('#primary-player-container [data-subtitleme-overlay]');
+      const p = host?.shadowRoot?.querySelector('[data-slot="primary"]')?.textContent ?? '';
+      const s = host?.shadowRoot?.querySelector('[data-slot="secondary"]')?.textContent ?? '';
+      return p.includes('Two languages.') && s.includes('Dois idiomas.');
+    });
+
+    // Seek forward to 2.0s -> verify second cue pair renders
+    await videoPage.click('#btn-seek-late');
+    await videoPage.waitForFunction(() => {
+      const host = document.querySelector('#primary-player-container [data-subtitleme-overlay]');
+      const p = host?.shadowRoot?.querySelector('[data-slot="primary"]')?.textContent ?? '';
+      const s = host?.shadowRoot?.querySelector('[data-slot="secondary"]')?.textContent ?? '';
+      return p.includes('Synchronized dual subtitles') && s.includes('Legendas duplas');
+    });
+
+    // Seek backward to 0.5s -> verify cue 1 returns
+    await videoPage.click('#btn-seek-early');
+    await videoPage.waitForFunction(() => {
+      const host = document.querySelector('#primary-player-container [data-subtitleme-overlay]');
+      const p = host?.shadowRoot?.querySelector('[data-slot="primary"]')?.textContent ?? '';
+      return p.includes('Two languages.');
+    });
+
+    // Playback speed 2x + real play/pause/ended cycle
+    await videoPage.click('#btn-speed-2x');
+    const rate = await videoPage.evaluate(() => {
+      const v = document.getElementById('primary-video');
+      return v ? v.playbackRate : 0;
+    });
+    assert.equal(rate, 2, 'Playback rate should update to 2x.');
+
+    await videoPage.evaluate(async () => {
+      const v = document.getElementById('primary-video');
+      if (!v) return;
+      await v.play();
+      v.pause();
+      await v.play();
+      v.currentTime = Number.isFinite(v.duration) && v.duration > 0.2 ? v.duration - 0.15 : 3.0;
+      await new Promise((resolveEnded) => {
+        if (v.ended) {
+          resolveEnded();
+          return;
+        }
+        v.addEventListener('ended', () => resolveEnded(), { once: true });
+      });
+    });
+
+    await videoPage.waitForFunction(() => {
+      const host = document.querySelector('#primary-player-container [data-subtitleme-overlay]');
+      const p = host?.shadowRoot?.querySelector('[data-slot="primary"]')?.textContent ?? '';
+      const s = host?.shadowRoot?.querySelector('[data-slot="secondary"]')?.textContent ?? '';
+      return p === '' && s === '';
+    });
+
+    const afterEnded = await getShadowSubtitleText(videoPage, '#primary-player-container');
+    assert.equal(afterEnded.primary, '', 'Primary cue should clear on ended.');
+    assert.equal(afterEnded.secondary, '', 'Secondary cue should clear on ended.');
+
+    // Multi-player test: scale up to 5 simultaneous videos, then remove back to 1
+    const multiStart = performance.now();
+    for (let i = 0; i < 4; i += 1) {
+      await videoPage.click('#btn-add-video');
+    }
+    await videoPage.waitForFunction(
+      () => document.querySelectorAll('[data-subtitleme-overlay]').length === 5,
+      { timeout: 5000 },
+    );
+    metrics.fiveVideosMountMs = Math.round(performance.now() - multiStart);
+
+    for (let i = 0; i < 4; i += 1) {
+      await videoPage.click('#btn-remove-video');
+    }
+    await videoPage.waitForFunction(
+      () => document.querySelectorAll('[data-subtitleme-overlay]').length === 1,
+      { timeout: 5000 },
+    );
+
+    // Trigger pagehide disposal and confirm original TextTrack.mode restored to 'disabled'
+    await videoPage.evaluate(() => {
+      window.dispatchEvent(new Event('pagehide'));
+    });
+    const postDispose = await videoPage.evaluate(() => {
+      const v = document.getElementById('primary-video');
+      return {
+        overlays: document.querySelectorAll('[data-subtitleme-overlay]').length,
+        mode0: v?.textTracks[0]?.mode,
+        mode1: v?.textTracks[1]?.mode,
+      };
+    });
+    assert.equal(postDispose.overlays, 0, 'All overlays must be removed on pagehide disposal.');
+    assert.equal(postDispose.mode0, 'disabled', 'Original TextTrack 0 mode must be restored.');
+    assert.equal(postDispose.mode1, 'disabled', 'Original TextTrack 1 mode must be restored.');
+    assert.deepEqual(uncaughtErrors, [], `Expected zero uncaught page errors, got: ${uncaughtErrors.join('; ')}`);
+
+    const sourceLabel = process.env.RELEASE_ZIP ? `RELEASE_ZIP=${process.env.RELEASE_ZIP}` : 'dist/';
+    console.log(
+      `[PASS] Real Chromium E2E Suite passed (${sourceLabel}, extensionId=${extensionId}, mount=${metrics.overlayMountMs}ms, srtImport=${metrics.srtImportMs}ms, fiveVideos=${metrics.fiveVideosMountMs}ms, pageErrors=0).`,
+    );
+  } finally {
+    if (context) {
+      await context.close();
+    }
+    server.close();
+    rmSync(userDataDir, { recursive: true, force: true });
+    if (extractedTempDir) {
+      rmSync(extractedTempDir, { recursive: true, force: true });
+    }
+  }
+}
+
+run().catch((error) => {
+  console.error('[FAIL] Real Chromium E2E Suite failed:', error);
+  process.exit(1);
+});

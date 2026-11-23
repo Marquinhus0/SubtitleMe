@@ -1,0 +1,162 @@
+{
+  "addonVersion": "1.0.0-rc.1",
+  "environment": {
+    "os": "",
+    "stremioVersion": "",
+    "nodeVersion": "",
+    "executedBy": "",
+    "executedAt": ""
+  },
+  "scenarios": [
+    {
+      "id": 1,
+      "name": "Companion startup",
+      "preconditions": "Node.js 22+ installed, port 7000 free",
+      "procedure": "Run ./apps/stremio-addon/bin/start-companion.sh or .\\apps\\stremio-addon\\bin\\start-companion.ps1",
+      "expected": "Companion binds exclusively to 127.0.0.1:7000 and /companion/health returns 200 OK",
+      "observed": "",
+      "evidence": "screenshots/scenario-01.png",
+      "status": "Pending Human Check"
+    },
+    {
+      "id": 2,
+      "name": "Manifest access",
+      "preconditions": "Companion running on 127.0.0.1:7000",
+      "procedure": "Open http://127.0.0.1:7000/manifest.json in browser",
+      "expected": "Valid JSON manifest with id com.subtitleme.addon and version 1.0.0-rc.1",
+      "observed": "",
+      "evidence": "screenshots/scenario-02.png",
+      "status": "Pending Human Check"
+    },
+    {
+      "id": 3,
+      "name": "Install addon in Stremio Desktop",
+      "preconditions": "Stremio Desktop open on same computer",
+      "procedure": "Copy configured manifest URL from /configure and paste in Stremio Addons -> + Add Addon",
+      "expected": "SubtitleMe appears installed in Stremio Addons list",
+      "observed": "",
+      "evidence": "screenshots/scenario-03.png",
+      "status": "Pending Human Check"
+    },
+    {
+      "id": 4,
+      "name": "Bilingual track discovery",
+      "preconditions": "Primary and secondary subtitles uploaded for test contentId (e.g. tt1254207)",
+      "procedure": "Start playback of matching title in Stremio Desktop and open subtitle picker",
+      "expected": "Track 'SubtitleMe — <Primary> + <Secondary>' is listed",
+      "observed": "",
+      "evidence": "screenshots/scenario-04.png",
+      "status": "Pending Human Check"
+    },
+    {
+      "id": 5,
+      "name": "Track selection in player",
+      "preconditions": "SubtitleMe track visible in picker",
+      "procedure": "Select the SubtitleMe track",
+      "expected": "Player downloads /generated/<opaqueToken>.vtt (200 OK) without errors",
+      "observed": "",
+      "evidence": "screenshots/scenario-05.png",
+      "status": "Pending Human Check"
+    },
+    {
+      "id": 6,
+      "name": "Simultaneous dual-language rendering",
+      "preconditions": "SubtitleMe track active",
+      "procedure": "Observe playback during overlapping dialogue",
+      "expected": "Both languages render simultaneously and legibly without CSS dependency",
+      "observed": "",
+      "evidence": "screenshots/scenario-06.png",
+      "status": "Pending Human Check"
+    },
+    {
+      "id": 7,
+      "name": "Stacking order (primary-top vs secondary-top)",
+      "preconditions": "Reconfigure order in /configure and reinstall configured manifest URL",
+      "procedure": "Compare vertical order of primary and secondary lines",
+      "expected": "Top/bottom order matches selected configuration",
+      "observed": "",
+      "evidence": "screenshots/scenario-07.png",
+      "status": "Pending Human Check"
+    },
+    {
+      "id": 8,
+      "name": "Independent timing offsets",
+      "preconditions": "Configure non-zero primaryOffsetMs and secondaryOffsetMs",
+      "procedure": "Observe cue entry/exit timing for each language independently",
+      "expected": "Each language shifts according to its own offset",
+      "observed": "",
+      "evidence": "screenshots/scenario-08.png",
+      "status": "Pending Human Check"
+    },
+    {
+      "id": 9,
+      "name": "Simultaneous cues",
+      "preconditions": "Both tracks share identical start/end timestamps",
+      "procedure": "Inspect simultaneous cue rendering",
+      "expected": "Single combined cue with clean line break and zero duplicate text",
+      "observed": "",
+      "evidence": "screenshots/scenario-09.png",
+      "status": "Pending Human Check"
+    },
+    {
+      "id": 10,
+      "name": "Partially overlapping cues",
+      "preconditions": "Tracks have staggered start/end timestamps",
+      "procedure": "Inspect transition into and out of overlap",
+      "expected": "Smooth transitions without flicker or dropped lines",
+      "observed": "",
+      "evidence": "screenshots/scenario-10.png",
+      "status": "Pending Human Check"
+    },
+    {
+      "id": 11,
+      "name": "Multiline cues",
+      "preconditions": "Primary or secondary cue contains multiple lines",
+      "procedure": "Inspect multiline dialogue display",
+      "expected": "All lines remain readable without clipping",
+      "observed": "",
+      "evidence": "screenshots/scenario-11.png",
+      "status": "Pending Human Check"
+    },
+    {
+      "id": 12,
+      "name": "Portuguese accents and special characters",
+      "preconditions": "Track contains UTF-8 characters (áéíóúãõç—«»)",
+      "procedure": "Inspect accented characters in player",
+      "expected": "All UTF-8 characters render cleanly without mojibake",
+      "observed": "",
+      "evidence": "screenshots/scenario-12.png",
+      "status": "Pending Human Check"
+    },
+    {
+      "id": 13,
+      "name": "Content switching",
+      "preconditions": "Two distinct contentIds uploaded in Companion",
+      "procedure": "Switch playback from video A to video B",
+      "expected": "Each video displays only its explicitly associated subtitle pair",
+      "observed": "",
+      "evidence": "screenshots/scenario-13.png",
+      "status": "Pending Human Check"
+    },
+    {
+      "id": 14,
+      "name": "Missing one track",
+      "preconditions": "Only primary subtitle uploaded for a contentId",
+      "procedure": "Play that contentId in Stremio Desktop",
+      "expected": "Addon returns empty list cleanly without mislabeling single-language track",
+      "observed": "",
+      "evidence": "screenshots/scenario-14.png",
+      "status": "Pending Human Check"
+    },
+    {
+      "id": 15,
+      "name": "Track deletion and cache invalidation",
+      "preconditions": "Active generated VTT URL from scenario 5",
+      "procedure": "Remove one track in /configure and re-request the previous VTT URL",
+      "expected": "Previous VTT URL immediately returns 404 Not Found; reloading subtitles reflects update",
+      "observed": "",
+      "evidence": "screenshots/scenario-15.png",
+      "status": "Pending Human Check"
+    }
+  ]
+}
