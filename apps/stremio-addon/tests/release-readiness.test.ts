@@ -97,7 +97,14 @@ describe('Sprint 12 — Release Readiness, Crash Recovery, Symlink Defense & Lau
 
     const symlinkName = '11111111-1111-1111-1111-111111111111.srt';
     const symlinkPath = join(dataDir, symlinkName);
-    symlinkSync(outsideSecret, symlinkPath);
+    try {
+      symlinkSync(outsideSecret, symlinkPath);
+    } catch (err) {
+      if (process.platform === 'win32' && (err as NodeJS.ErrnoException).code === 'EPERM') {
+        return;
+      }
+      throw err;
+    }
 
     expect(() => assertNotSymlink(symlinkPath)).toThrow(/symbolic links are not permitted/);
 
@@ -163,7 +170,9 @@ describe('Sprint 12 — Release Readiness, Crash Recovery, Symlink Defense & Lau
     }
   });
 
-  it('executes native Linux launcher start-companion.sh end-to-end and shuts down gracefully on SIGTERM', async () => {
+  it.skipIf(process.platform === 'win32')(
+    'executes native Linux launcher start-companion.sh end-to-end and shuts down gracefully on SIGTERM',
+    async () => {
     const port = await getFreeLoopbackPort();
     const dataDir = createTempDir('subtitleme-s12-linux-');
     const launcherPath = resolve(process.cwd(), 'apps/stremio-addon/bin/start-companion.sh');
@@ -217,7 +226,9 @@ describe('Sprint 12 — Release Readiness, Crash Recovery, Symlink Defense & Lau
         child.kill('SIGKILL');
       }
     }
-  }, 10_000);
+  },
+  10_000,
+  );
 
   it('verifies Windows PowerShell launcher script contract (static check only — native Windows is Not Evaluated)', () => {
     const ps1Path = resolve(process.cwd(), 'apps/stremio-addon/bin/start-companion.ps1');

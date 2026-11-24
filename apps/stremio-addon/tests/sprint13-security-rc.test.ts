@@ -124,27 +124,37 @@ describe('Sprint 13 — Deep Security Audit, Paths With Spaces & Release Candida
     expect(recovery.records).toHaveLength(1);
     expect(recovery.records[0]?.record.filename).toBe('my movie sub.srt');
 
-    // Symlinked index.json pointing outside must be rejected atomically via O_NOFOLLOW
+    // Symlinked index.json pointing outside must be rejected atomically via O_NOFOLLOW (when OS allows symlinks)
     const symlinkDir = createTempDir('subtitleme-s13-idxsym-');
     const outsideDir = createTempDir('subtitleme-s13-ext-');
     const fakeIndex = join(outsideDir, 'index.json');
     writeFileSync(fakeIndex, JSON.stringify({ version: 1, entries: [] }), 'utf-8');
-    symlinkSync(fakeIndex, join(symlinkDir, 'index.json'));
+    let symlinkCreated = false;
+    try {
+      symlinkSync(fakeIndex, join(symlinkDir, 'index.json'));
+      symlinkCreated = true;
+    } catch (err) {
+      if (process.platform !== 'win32' || (err as NodeJS.ErrnoException).code !== 'EPERM') {
+        throw err;
+      }
+    }
 
-    const pSym = new CompanionPersistence({ enabled: true, dataDir: symlinkDir });
-    const symRecovery = pSym.loadAll();
-    expect(symRecovery.records).toEqual([]);
-    expect(symRecovery.corruptedSkippedCount).toBe(1);
+    if (symlinkCreated) {
+      const pSym = new CompanionPersistence({ enabled: true, dataDir: symlinkDir });
+      const symRecovery = pSym.loadAll();
+      expect(symRecovery.records).toEqual([]);
+      expect(symRecovery.corruptedSkippedCount).toBe(1);
+    }
   });
 
-  it('verifies Release Candidate 1.0.0-rc.1 metadata consistency and Windows script space-safe quoting', () => {
+  it('verifies Release Candidate 1.0.0-rc.2 metadata consistency and Windows script space-safe quoting', () => {
     const pkg = JSON.parse(
       readFileSync(resolve(process.cwd(), 'apps/stremio-addon/package.json'), 'utf-8'),
     ) as { version: string };
     const manifest = createAddonManifest();
 
-    expect(pkg.version).toBe('1.0.0-rc.1');
-    expect(manifest.version).toBe('1.0.0-rc.1');
+    expect(pkg.version).toBe('1.0.0-rc.2');
+    expect(manifest.version).toBe('1.0.0-rc.2');
 
     const ps1 = readFileSync(
       resolve(process.cwd(), 'apps/stremio-addon/bin/start-companion.ps1'),

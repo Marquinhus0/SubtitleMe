@@ -1,0 +1,32 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:05.000
+Hello! Short opening line.
+
+00:00:05.500 --> 00:00:12.000
+This is a long subtitle line designed to validate line wrapping, readability, and special symbols: — «SubtitleMe».
+
+00:00:18.000 --> 00:00:25.000
+After silent interval: simultaneous cues with tight timestamps.
+
+00:00:28.000 --> 00:00:36.000
+Partial overlap starting mid-cue in English and ending later.
+
+00:00:35.000 --> 00:00:48.000
+First multiline cue in English.
+Second line preserved cleanly without clipping — 100%.
+
+00:01:00.000 --> 00:02:00.000
+[01:00 - EN] Continuous stability and timeline seek validation.
+
+00:03:00.000 --> 00:04:00.000
+[03:00 - EN] Synchronization preserved across pause and resume.
+
+00:05:00.000 --> 00:06:00.000
+[05:00 - EN] Midpoint of 10-minute stability check (5 minutes).
+
+00:07:30.000 --> 00:08:30.000
+[07:30 - EN] Continuous playback without duplicate subtitles.
+
+00:09:30.000 --> 00:10:30.000
+[10:00 - EN] Completion of 10-minute stability validation.

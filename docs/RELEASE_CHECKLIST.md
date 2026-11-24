@@ -34,3 +34,25 @@
 
 - [ ] Stremio Addon packaging (scheduled post-1.0; shared core merger already prepared).
 - [ ] Microsoft Edge Add-ons / Firefox AMO store submission (out of v1.0.0 scope).
+
+---
+
+# Release Checklist — SubtitleMe Stremio Addon `1.0.0-rc.2` (Sprint 15.2)
+
+## Approved (Technical & Clean-Install Validation)
+
+- [x] **Previous RC preserved**: `dist/release/subtitleme-stremio-v1.0.0-rc.1.tar.gz` untouched (`SHA-256: 8000c945caf0e21c9f4f167aeada96eba258d39830b59b0791dff8fda8caf385`).
+- [x] **Standalone archive generated**: `dist/release/subtitleme-stremio-v1.0.0-rc.2.tar.gz` (`2,440,698` bytes, `5,628` files), zero `workspace:*` references, runs outside monorepo.
+- [x] **SHA-256 recorded**: `6e52ba59a7134901ac5b86669eec8c08310aaddd417b6efcbc5aa11465c6a71a` in `dist/release/subtitleme-stremio-v1.0.0-rc.2.sha256`.
+- [x] **Entrypoint fix verified**: Spaces, accented characters, Unicode paths, module import non-autostart, and non-zero error exit verified.
+- [x] **Windows launchers verified**: `bin/start-companion.cmd` (zero ExecutionPolicy friction) and `bin/start-companion.ps1` (process-scoped, never alters global ExecutionPolicy) verified in spaced directory.
+- [x] **17/17 Clean-install scenarios passed**: Documented in `docs/CLEAN_INSTALL_VALIDATION.md` (Node.js `v24.19.0`, Windows 11 X64).
+- [x] **Full regression passed**: `tsc --noEmit` (all packages + addon), `vue-tsc --noEmit` + `vite build` (Chrome extension), `eslint .` (`0` errors), `vitest run` (`30/30` files, `122` passed, `1` Linux-only test skipped on `win32`).
+- [x] **Security controls preserved**: Loopback-only `127.0.0.1`, DNS rebinding Host guard, Origin/CSRF/CORS separation, session revocation, path traversal & injection rejection, private VTT cache, opt-in persistence.
+- [x] **Chrome Extension & shared packages untouched**: Version `1.0.0` preserved; no publication or `git push`.
+
+## Pending (Required Before `1.0.0` GA Promotion)
+
+- [ ] **Stremio Desktop visual validation (15 scenarios + real screenshots)** on Windows (`v5.0.28`) / Linux.
+- [ ] **Live OpenSubtitles API v1 test** (optional/opt-in; currently `Partially Tested` and disabled by default).
+

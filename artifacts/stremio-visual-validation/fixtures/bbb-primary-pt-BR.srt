@@ -1,0 +1,40 @@
+1
+00:00:01,000 --> 00:00:05,000
+Olá! Fala curta inicial.
+
+2
+00:00:05,500 --> 00:00:12,000
+Esta é uma legenda longa de teste para validar quebra de linha, legibilidade e acentuação completa: áéíóúãõç — «SubtitleMe».
+
+3
+00:00:18,000 --> 00:00:25,000
+Após intervalo sem diálogo: cues simultâneos com timestamps próximos.
+
+4
+00:00:25,200 --> 00:00:34,000
+Sobreposição parcial iniciando em português primeiro.
+
+5
+00:00:35,000 --> 00:00:48,000
+Primeira linha multilinha em português.
+Segunda linha com caracteres especiais: coração, ação, bênção — 100%.
+
+6
+00:01:00,000 --> 00:02:00,000
+[01:00 - PT-BR] Teste de estabilidade contínua e busca na timeline.
+
+7
+00:03:00,000 --> 00:04:00,000
+[03:00 - PT-BR] Sincronização preservada após pausa e retomada.
+
+8
+00:05:00,000 --> 00:06:00,000
+[05:00 - PT-BR] Metade do teste de estabilidade (5 minutos).
+
+9
+00:07:30,000 --> 00:08:30,000
+[07:30 - PT-BR] Verificação contínua sem duplicação de legendas.
+
+10
+00:09:30,000 --> 00:10:30,000
+[10:00 - PT-BR] Conclusão do teste de estabilidade de 10 minutos.

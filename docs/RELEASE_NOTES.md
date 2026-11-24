@@ -39,3 +39,25 @@ SubtitleMe 1.0.0 is the initial release of our free, privacy-first dual-subtitle
 - Sites that do not expose standard HTML5 `TextTrack`s (or use DRM/canvas captions) require importing local `.srt` or `.vtt` files.
 - Fullscreen directly on a bare `<video>` element cannot display DOM overlays due to browser specifications; container/wrapper fullscreen is supported.
 - Browser-level global keyboard shortcuts (`chrome.commands`) are planned for a future update.
+
+---
+
+# Release Notes — SubtitleMe Stremio Addon `1.0.0-rc.2` (Sprint 15.2)
+
+**Release Tag**: `1.0.0-rc.2` *(Release Candidate — NOT GA)*  
+**Platform**: Local Companion (`127.0.0.1`) — Windows 11 X64 clean-install verified; Linux protocol verified  
+**Archive**: `dist/release/subtitleme-stremio-v1.0.0-rc.2.tar.gz`  
+**SHA-256**: `6e52ba59a7134901ac5b86669eec8c08310aaddd417b6efcbc5aa11465c6a71a`
+
+## What's Fixed in `1.0.0-rc.2` (from `1.0.0-rc.1`)
+
+- **Standalone Distribution Archive**: `scripts/package-stremio-addon.mjs` now packages production-only `stremio-addon-sdk` runtime dependencies and a clean `package.json` with zero `workspace:*` references — runs directly outside the monorepo without `pnpm`.
+- **Spaces & Unicode Path Entrypoint Fix**: Replaced raw `import.meta.url.endsWith()` check with `isDirectExecution()` using `fileURLToPath()` + `path.resolve()` + `realpathSync()` (and `win32` case normalization), fixing silent exit `0` in directories containing spaces, accents, or Unicode.
+- **Non-Silent Startup Error Handling**: Invalid `PORT` and fatal startup errors now exit with code `1` and explicit stderr diagnostics; startup logs include the process `PID`.
+- **Windows Launcher Experience**: Added `bin/start-companion.cmd` (works on default Windows without PowerShell `ExecutionPolicy` friction) and hardened `bin/start-companion.ps1` with `-LiteralPath`, standalone directory support, and clear `ExecutionPolicy` guidance without altering global policy.
+
+## Still Pending Before GA
+
+- Visual player validation (15 scenarios + real screenshots) in **Stremio Desktop (`v5.0.28`)** on Windows and/or Linux.
+- Live OpenSubtitles REST API v1 validation with an authorized API key (`Partially Tested`, disabled by default).
+

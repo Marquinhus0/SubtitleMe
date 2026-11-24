@@ -1,0 +1,35 @@
+{
+  "sprint": "15.3",
+  "addonVersion": "1.0.0-rc.2",
+  "rcSha256": "6e52ba59a7134901ac5b86669eec8c08310aaddd417b6efcbc5aa11465c6a71a",
+  "decision": "REJECTED",
+  "gaStatus": "NO-GO",
+  "environment": {
+    "os": "Microsoft Windows NT 10.0.26300.0 (Windows 11 X64)",
+    "nodeVersion": "v24.19.0",
+    "stremioVersion": "5.0.28"
+  },
+  "failureClassification": [
+    "Content association",
+    "Subtitle resource",
+    "Companion lifecycle"
+  ],
+  "screenshotsCaptured": 0,
+  "scenarios": [
+    { "id": 1, "name": "Instalação do addon", "status": "PASS", "observed": "Addon instalado no Stremio Desktop 5.0.28 via + Add Addon" },
+    { "id": 2, "name": "Abertura da configuração", "status": "BLOCKED", "observed": "GET /configure 200 OK; sem screenshot visual" },
+    { "id": 3, "name": "Companion conectado", "status": "PASS", "observed": "Ativo em 127.0.0.1:7000 (PID 25416) via bin/start-companion.cmd" },
+    { "id": 4, "name": "Importação de SRT", "status": "BLOCKED", "observed": "API 201 OK; validação visual encerrada" },
+    { "id": 5, "name": "Importação de VTT", "status": "BLOCKED", "observed": "API 201 OK; validação visual encerrada" },
+    { "id": 6, "name": "Associação por contentId", "status": "FAIL", "observed": "Store com registeredSubtitles: 0 durante teste no Stremio; sem fonte automática" },
+    { "id": 7, "name": "Geração bilíngue", "status": "FAIL", "observed": "GET /<config>/subtitles/movie/tt1254207.json retornou {\"subtitles\":[]}" },
+    { "id": 8, "name": "Seleção da legenda no player", "status": "FAIL", "observed": "Nenhuma legenda ou opção do SubtitleMe apareceu no player do Stremio Desktop 5.0.28" },
+    { "id": 9, "name": "Reprodução simultânea", "status": "BLOCKED", "observed": "Bloqueado pelo cenário 08" },
+    { "id": 10, "name": "Posicionamento", "status": "BLOCKED", "observed": "Bloqueado pelo cenário 08" },
+    { "id": 11, "name": "Offset independente", "status": "BLOCKED", "observed": "Bloqueado pelo cenário 08" },
+    { "id": 12, "name": "Pausa e retomada", "status": "BLOCKED", "observed": "Bloqueado pelo cenário 08" },
+    { "id": 13, "name": "Busca na timeline", "status": "BLOCKED", "observed": "Bloqueado pelo cenário 08" },
+    { "id": 14, "name": "Conteúdo sem uma das fontes", "status": "BLOCKED", "observed": "Validação encerrada como REJECTED" },
+    { "id": 15, "name": "Exclusão e atualização", "status": "BLOCKED", "observed": "Validação encerrada como REJECTED" }
+  ]
+}

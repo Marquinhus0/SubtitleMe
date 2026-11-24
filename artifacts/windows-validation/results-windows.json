@@ -1,0 +1,187 @@
+{
+  "addonVersion": "1.0.0-rc.1",
+  "rcArtifact": {
+    "path": "dist/release/subtitleme-stremio-v1.0.0-rc.1.tar.gz",
+    "expectedSha256": "8000c945caf0e21c9f4f167aeada96eba258d39830b59b0791dff8fda8caf385",
+    "actualSha256": "8000c945caf0e21c9f4f167aeada96eba258d39830b59b0791dff8fda8caf385",
+    "sha256Match": true
+  },
+  "environment": {
+    "os": "Microsoft Windows NT 10.0.26300.0 (Windows 11 X64)",
+    "stremioVersion": "5.0.28 (stremio-shell-ng.exe, stremio-runtime.exe 18.12.1)",
+    "nodeVersion": "v24.19.0",
+    "npmVersion": "11.17.0 (npm.cmd)",
+    "pnpmVersion": "not installed",
+    "executionPolicy": "All scopes Undefined (effective: Restricted)",
+    "openSubtitlesApiKeyConfigured": false,
+    "executedAt": "2026-11-23T23:35:28Z"
+  },
+  "gaRecommendation": "NO-GO",
+  "scenarios": [
+    {
+      "id": 1,
+      "name": "Companion startup",
+      "preconditions": "Windows 11 X64, Node.js v24.19.0, port 7000 free, RC extracted to isolated directory.",
+      "procedure": "Run .\\bin\\start-companion.ps1 directly; then test with per-process -ExecutionPolicy Bypass and direct node dist/index.mjs after isolated stremio-addon-sdk install; test port conflict and directory path containing spaces.",
+      "expected": "Companion launches cleanly via start-companion.ps1 from extracted RC, binds exclusively to 127.0.0.1:7000, handles spaces in path, and /companion/health returns 200 OK.",
+      "observed": "THREE REAL WINDOWS DEFECTS FOUND: (1) Direct .\\bin\\start-companion.ps1 blocked by default ExecutionPolicy (PSSecurityException UnauthorizedAccess). (2) Standalone extracted RC fails with ERR_MODULE_NOT_FOUND: stremio-addon-sdk (not bundled; package.json has workspace:*). (3) Path containing spaces causes src/index.ts isDirectRun (import.meta.url.endsWith) to evaluate false (%20 vs space), exiting silently with code 0. With isolated stremio-addon-sdk in a non-space path and per-process Bypass, Companion started on 127.0.0.1:7000 (verified via netstat -ano), /companion/health returned 200 OK, and port conflict exited code 1 with clear message.",
+      "evidence": "Native Windows execution logs; netstat -ano TCP 127.0.0.1:7000 LISTENING; no screenshot captured.",
+      "status": "FAIL",
+      "observations": "Fails out-of-the-box RC standalone execution and spaces-in-path requirement; core HTTP server works once stremio-addon-sdk is supplied in a non-space path."
+    },
+    {
+      "id": 2,
+      "name": "Manifest access",
+      "preconditions": "Companion running natively on 127.0.0.1:7000 (with isolated stremio-addon-sdk).",
+      "procedure": "Request GET http://127.0.0.1:7000/manifest.json.",
+      "expected": "Valid JSON manifest with id com.subtitleme.addon and version 1.0.0-rc.1.",
+      "observed": "HTTP 200 OK returned valid JSON with id 'com.subtitleme.addon', version '1.0.0-rc.1', name 'SubtitleMe', resources ['subtitles'], types ['movie','series'], and full config schema.",
+      "evidence": "Native Windows HTTP response verified via Node fetch; Chrome DevTools remote debugging unavailable so no browser screenshot captured.",
+      "status": "PASS",
+      "observations": "Manifest payload and CORS header (Access-Control-Allow-Origin: *) verified natively on Windows."
+    },
+    {
+      "id": 3,
+      "name": "Install addon in Stremio Desktop",
+      "preconditions": "Stremio Desktop 5.0.28 installed; Companion live on 127.0.0.1:7000; configured manifest URL generated.",
+      "procedure": "Paste configured http://127.0.0.1:7000/<config>/manifest.json in Stremio Desktop Addons -> + Add Addon and install.",
+      "expected": "SubtitleMe appears installed in Stremio Addons list.",
+      "observed": "Not executed in Stremio Desktop GUI. No desktop GUI automation available for stremio-shell-ng.exe, and user elected to close validation without interactive GUI run. Configured manifest URL generation was verified natively via POST /companion/install-url (200 OK).",
+      "evidence": "No screenshot (screenshots/scenario-03.png not generated).",
+      "status": "BLOCKED",
+      "observations": "Requires human-operated GUI interaction in Stremio Desktop 5.0.28."
+    },
+    {
+      "id": 4,
+      "name": "Bilingual track discovery",
+      "preconditions": "Primary (en .vtt) and secondary (pt-BR .srt) fixtures uploaded for tt1254207; addon installed in Stremio Desktop.",
+      "procedure": "Start playback of tt1254207 (Big Buck Bunny) in Stremio Desktop and open subtitle picker.",
+      "expected": "Track 'SubtitleMe — <Primary> + <Secondary>' is listed.",
+      "observed": "GUI playback not executed. Native Windows HTTP check GET /<config>/subtitles/movie/tt1254207.json returned 200 OK with 1 bilingual track entry.",
+      "evidence": "Native Windows HTTP verification only; no Stremio Desktop screenshot.",
+      "status": "BLOCKED",
+      "observations": "Protocol layer verified natively on Windows; Stremio Desktop 5.0.28 UI picker not verified."
+    },
+    {
+      "id": 5,
+      "name": "Track selection in player",
+      "preconditions": "SubtitleMe track visible in Stremio Desktop picker.",
+      "procedure": "Select the SubtitleMe track in Stremio Desktop player.",
+      "expected": "Player downloads /generated/<opaqueToken>.vtt (200 OK) without errors.",
+      "observed": "GUI player selection not executed. Native Windows HTTP fetch of the generated /generated/<opaqueToken>.vtt URL returned 200 OK with Cache-Control: private, no-store.",
+      "evidence": "Native Windows HTTP verification only; no Stremio Desktop screenshot.",
+      "status": "BLOCKED",
+      "observations": "VTT delivery verified natively; Stremio Desktop player fetch/consumption not visually verified."
+    },
+    {
+      "id": 6,
+      "name": "Simultaneous dual-language rendering",
+      "preconditions": "SubtitleMe track active in Stremio Desktop player.",
+      "procedure": "Observe playback during overlapping dialogue (00:00:01-00:00:08).",
+      "expected": "Both languages render simultaneously and legibly without CSS dependency.",
+      "observed": "GUI rendering not executed. Generated WebVTT payload natively verified to contain both English and Portuguese lines in merged cues.",
+      "evidence": "Native Windows VTT payload verification only; no Stremio Desktop screenshot.",
+      "status": "BLOCKED",
+      "observations": "Visual legibility in Stremio Desktop 5.0.28 player unverified."
+    },
+    {
+      "id": 7,
+      "name": "Stacking order (primary-top vs secondary-top)",
+      "preconditions": "Reconfigure order in /configure and reinstall configured manifest URL.",
+      "procedure": "Compare vertical order of primary and secondary lines in Stremio Desktop player.",
+      "expected": "Top/bottom order matches selected configuration.",
+      "observed": "GUI rendering not executed. Native Windows POST /companion/preview verified primary-top puts English above Portuguese and secondary-top reverses ordering.",
+      "evidence": "Native Windows API verification only; no Stremio Desktop screenshot.",
+      "status": "BLOCKED",
+      "observations": "Server-side ordering verified; player rendering unverified."
+    },
+    {
+      "id": 8,
+      "name": "Independent timing offsets",
+      "preconditions": "Configure non-zero primaryOffsetMs (+2000) and secondaryOffsetMs (-500).",
+      "procedure": "Observe cue entry/exit timing for each language independently in player.",
+      "expected": "Each language shifts according to its own offset.",
+      "observed": "GUI rendering not executed. Native Windows POST /companion/preview with primaryOffsetMs=+2000 and secondaryOffsetMs=-500 shifted Portuguese cue start to 500ms while English shifted to 3000ms.",
+      "evidence": "Native Windows API verification only; no Stremio Desktop screenshot.",
+      "status": "BLOCKED",
+      "observations": "Timestamp arithmetic verified natively; player synchronization unverified."
+    },
+    {
+      "id": 9,
+      "name": "Simultaneous cues",
+      "preconditions": "Both tracks share identical start/end timestamps (00:00:01-00:00:08).",
+      "procedure": "Inspect simultaneous cue rendering in Stremio Desktop.",
+      "expected": "Single combined cue with clean line break and zero duplicate text.",
+      "observed": "GUI rendering not executed. Native Windows preview/VTT confirmed single combined cue (1000-8000ms) with clean newline separation and zero duplication.",
+      "evidence": "Native Windows VTT verification only; no Stremio Desktop screenshot.",
+      "status": "BLOCKED",
+      "observations": "Visual player verification pending."
+    },
+    {
+      "id": 10,
+      "name": "Partially overlapping cues",
+      "preconditions": "Tracks have staggered timestamps (PT 00:00:09-00:00:18, EN 00:00:12-00:00:22).",
+      "procedure": "Inspect transition into and out of overlap in Stremio Desktop.",
+      "expected": "Smooth transitions without flicker or dropped lines.",
+      "observed": "GUI rendering not executed. Staggered overlap fixtures uploaded and merged cleanly via Companion on Windows.",
+      "evidence": "Native Windows VTT verification only; no Stremio Desktop screenshot.",
+      "status": "BLOCKED",
+      "observations": "Visual transition/flicker check in Stremio Desktop player pending."
+    },
+    {
+      "id": 11,
+      "name": "Multiline cues",
+      "preconditions": "Both tracks contain 2-line cues (00:00:23-00:00:32).",
+      "procedure": "Inspect multiline dialogue display in Stremio Desktop.",
+      "expected": "All lines remain readable without clipping.",
+      "observed": "GUI rendering not executed. Native Windows VTT output preserved all line breaks intact.",
+      "evidence": "Native Windows VTT verification only; no Stremio Desktop screenshot.",
+      "status": "BLOCKED",
+      "observations": "Player clipping/layout check pending."
+    },
+    {
+      "id": 12,
+      "name": "Portuguese accents and special characters",
+      "preconditions": "Track contains UTF-8 characters (áéíóúãõç—«»).",
+      "procedure": "Inspect accented characters in Stremio Desktop player.",
+      "expected": "All UTF-8 characters render cleanly without mojibake.",
+      "observed": "GUI rendering not executed. Native Windows HTTP VTT response verified UTF-8 string 'áéíóúãõç — «SubtitleMe»' preserved byte-accurately without mojibake.",
+      "evidence": "Native Windows VTT verification only; no Stremio Desktop screenshot.",
+      "status": "BLOCKED",
+      "observations": "UTF-8 transport verified; Stremio Desktop font/glyph rendering pending."
+    },
+    {
+      "id": 13,
+      "name": "Content switching",
+      "preconditions": "Two distinct contentIds uploaded (tt1254207 Big Buck Bunny, tt1727587 Sintel).",
+      "procedure": "Switch playback from video A to video B in Stremio Desktop.",
+      "expected": "Each video displays only its explicitly associated subtitle pair.",
+      "observed": "GUI playback not executed. Native Windows HTTP requests for tt1254207 and tt1727587 returned isolated VTT tracks containing only each video's associated subtitles.",
+      "evidence": "Native Windows HTTP verification only; no Stremio Desktop screenshot.",
+      "status": "BLOCKED",
+      "observations": "Backend content isolation verified; Stremio Desktop player switching pending."
+    },
+    {
+      "id": 14,
+      "name": "Missing one track",
+      "preconditions": "Only primary subtitle (en) uploaded for tt2285752 (Tears of Steel).",
+      "procedure": "Play tt2285752 in Stremio Desktop.",
+      "expected": "Addon returns empty list cleanly without mislabeling single-language track.",
+      "observed": "GUI playback not executed. Native Windows HTTP request GET /<config>/subtitles/movie/tt2285752.json returned 200 OK with { subtitles: [] } (0 tracks).",
+      "evidence": "Native Windows HTTP verification only; no Stremio Desktop screenshot.",
+      "status": "BLOCKED",
+      "observations": "Protocol response verified natively; Stremio Desktop UI handling pending."
+    },
+    {
+      "id": 15,
+      "name": "Track deletion and cache invalidation",
+      "preconditions": "Active generated VTT URL from tt1254207.",
+      "procedure": "Remove one track via DELETE /companion/subtitles/:id (or /configure) and re-request the previous VTT URL.",
+      "expected": "Previous VTT URL immediately returns 404 Not Found; reloading subtitles reflects update.",
+      "observed": "GUI reload not executed. Native Windows DELETE /companion/subtitles/:id returned 200 OK and immediate re-request of the previously generated /generated/<opaqueToken>.vtt returned 404 Not Found.",
+      "evidence": "Native Windows HTTP verification only; no Stremio Desktop screenshot.",
+      "status": "BLOCKED",
+      "observations": "Immediate cache invalidation verified natively; Stremio Desktop reload behavior pending."
+    }
+  ]
+}

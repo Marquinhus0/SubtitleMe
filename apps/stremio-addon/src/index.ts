@@ -1,8 +1,10 @@
 import { attachGracefulShutdown, checkPortAvailable } from './companion/companion-lifecycle';
+import { isDirectExecution } from './companion/entrypoint';
 import { startStremioAddonServer } from './server/server';
 
 export { createAddonManifest } from './addon/manifest';
 export { createSubtitlesHandler } from './addon/subtitles-handler';
+export { isDirectExecution } from './companion/entrypoint';
 export {
   COMPANION_CSRF_HEADER,
   COMPANION_TOKEN_HEADER,
@@ -111,15 +113,22 @@ export type {
 export { startStremioAddonServer, type RunningStremioAddonServer } from './server/server';
 
 const isDirectRun =
-  typeof process !== 'undefined' &&
-  process.argv[1] !== undefined &&
-  import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'));
+  typeof process !== 'undefined' && isDirectExecution(import.meta.url, process.argv[1]);
 
 if (isDirectRun) {
-  const port = Number(process.env.PORT ?? 7000);
+  const rawPort = process.env.PORT ?? '7000';
+  const port = Number(rawPort);
   const persistenceEnabled = process.env.SUBTITLEME_PERSISTENCE === '1';
 
   void (async () => {
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      console.error(
+        `[SubtitleMe Companion] Invalid PORT "${rawPort}". Expected an integer between 1 and 65535.`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+
     const portCheck = await checkPortAvailable(port, '127.0.0.1');
     if (!portCheck.available) {
       console.error(`[SubtitleMe Companion] ${portCheck.reason}`);
@@ -139,11 +148,17 @@ if (isDirectRun) {
       console.log(`[SubtitleMe Companion] Graceful shutdown completed (${signal}).`);
     });
 
-    console.log(`SubtitleMe Stremio Addon + Local Companion listening at ${running.baseUrl}`);
+    console.log(
+      `SubtitleMe Stremio Addon + Local Companion listening at ${running.baseUrl} (PID ${process.pid})`,
+    );
     console.log(`Configure UI: ${running.baseUrl}/configure`);
     console.log(`Manifest URL: ${running.baseUrl}/manifest.json`);
     console.log(
       `Local Persistence: ${running.persistence.isEnabled() ? `ENABLED (${running.persistence.getDataDir()})` : 'DISABLED (memory-only; set SUBTITLEME_PERSISTENCE=1 or enable in /configure)'}`,
     );
-  })();
+  })().catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[SubtitleMe Companion] Fatal startup error: ${message}`);
+    process.exitCode = 1;
+  });
 }
