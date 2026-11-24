@@ -25,7 +25,12 @@ export class LocalFileSubtitleSource implements SubtitleSourceProvider {
   }
 
   public async fetchSubtitle(query: SubtitleSourceQuery): Promise<RawSubtitleAsset | null> {
-    const normalizedVideoId = query.videoId.trim();
+    let normalizedVideoId = query.videoId.trim();
+    try {
+      normalizedVideoId = decodeURIComponent(normalizedVideoId);
+    } catch {
+      // Keep trimmed raw ID if malformed percent-encoding
+    }
     if (normalizedVideoId.length === 0) {
       return null;
     }

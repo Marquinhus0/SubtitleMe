@@ -1,22 +1,26 @@
 import { findLanguageDescriptor } from '../config/addon-config';
 import { validateAddonConfig } from '../config/config-validator';
 import type { SubtitleFileService } from '../delivery/subtitle-file-service';
-import type { SubtitleSourceProvider } from '../sources/subtitle-source.interface';
+import { parseStremioContentId } from '../discovery/content-identifier';
+import type { SubtitleDiscoveryOrchestrator } from '../discovery/discovery-orchestrator';
+import type { RawSubtitleAsset, SubtitleSourceProvider } from '../sources/subtitle-source.interface';
 import type {
   StremioSubtitlesRequest,
   StremioSubtitlesResponse,
 } from '../types/stremio';
 
 export interface SubtitlesHandlerDeps {
-  sourceProvider: SubtitleSourceProvider;
+  sourceProvider?: SubtitleSourceProvider;
+  discoveryOrchestrator?: SubtitleDiscoveryOrchestrator;
   fileService: SubtitleFileService;
   cacheMaxAgeSeconds?: number;
 }
 
 /**
  * Builds the `defineSubtitlesHandler` callback for the official Stremio Addon SDK.
- * Validates request parameters and user config, fetches both tracks from the
- * configured SubtitleSourceProvider, merges them into WebVTT via SubtitleFileService,
+ * Parses the Stremio content identity (movie or series episode), validates user config,
+ * discovers & matches both tracks via `SubtitleDiscoveryOrchestrator` (or legacy
+ * `SubtitleSourceProvider`), merges them into WebVTT via `SubtitleFileService`,
  * and returns a protocol-compliant Subtitles Object (`id`, `url`, `lang`, `label`).
  */
 export function createSubtitlesHandler(deps: SubtitlesHandlerDeps) {
@@ -29,38 +33,65 @@ export function createSubtitlesHandler(deps: SubtitlesHandlerDeps) {
       return { subtitles: [] };
     }
 
+    const identity = parseStremioContentId({
+      type: args.type,
+      id: args.id,
+      ...(args.extra !== undefined ? { extra: args.extra } : {}),
+    });
+    if (!identity) {
+      return { subtitles: [] };
+    }
+
     const validation = validateAddonConfig(args.config);
     if (!validation.valid || !validation.config.bilingualEnabled) {
       return { subtitles: [] };
     }
 
     const { config } = validation;
-    const baseQuery = {
-      type: args.type,
-      videoId: args.id.trim(),
-      ...(args.extra?.videoHash !== undefined ? { videoHash: args.extra.videoHash } : {}),
-      ...(args.extra?.videoSize !== undefined ? { videoSize: args.extra.videoSize } : {}),
-      ...(args.extra?.filename !== undefined ? { filename: args.extra.filename } : {}),
-    };
 
     try {
-      const [primaryAsset, secondaryAsset] = await Promise.all([
-        deps.sourceProvider.fetchSubtitle({
-          ...baseQuery,
-          language: config.primaryLanguage,
-        }),
-        deps.sourceProvider.fetchSubtitle({
-          ...baseQuery,
-          language: config.secondaryLanguage,
-        }),
-      ]);
+      let primaryAsset: RawSubtitleAsset | null = null;
+      let secondaryAsset: RawSubtitleAsset | null = null;
+
+      if (deps.discoveryOrchestrator) {
+        const resolved = await deps.discoveryOrchestrator.resolveBilingualAssets(
+          identity,
+          config.primaryLanguage,
+          config.secondaryLanguage,
+        );
+        if (resolved.status !== 'resolved' || !resolved.primaryAsset || !resolved.secondaryAsset) {
+          return { subtitles: [] };
+        }
+        primaryAsset = resolved.primaryAsset;
+        secondaryAsset = resolved.secondaryAsset;
+      } else if (deps.sourceProvider) {
+        const baseQuery = {
+          type: identity.mediaType,
+          videoId: identity.canonicalId,
+          ...(identity.videoHash !== undefined ? { videoHash: identity.videoHash } : {}),
+          ...(identity.videoSize !== undefined ? { videoSize: identity.videoSize } : {}),
+          ...(identity.filename !== undefined ? { filename: identity.filename } : {}),
+        };
+        const [p, s] = await Promise.all([
+          deps.sourceProvider.fetchSubtitle({
+            ...baseQuery,
+            language: config.primaryLanguage,
+          }),
+          deps.sourceProvider.fetchSubtitle({
+            ...baseQuery,
+            language: config.secondaryLanguage,
+          }),
+        ]);
+        primaryAsset = p;
+        secondaryAsset = s;
+      }
 
       if (!primaryAsset || !secondaryAsset) {
         return { subtitles: [] };
       }
 
       const delivery = deps.fileService.generateCombinedVtt(
-        baseQuery.videoId,
+        identity.canonicalId,
         primaryAsset,
         secondaryAsset,
         config,

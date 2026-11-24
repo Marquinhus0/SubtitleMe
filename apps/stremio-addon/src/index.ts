@@ -110,7 +110,39 @@ export type {
   SubtitleSourceProvider,
   SubtitleSourceQuery,
 } from './sources/subtitle-source.interface';
-export { startStremioAddonServer, type RunningStremioAddonServer } from './server/server';
+export {
+  doesContentIdentityMatch,
+  parseStremioContentId,
+  type ContentIdNamespace,
+  type StremioContentIdentity,
+} from './discovery/content-identifier';
+export {
+  SubtitleDiscoveryOrchestrator,
+  type DiscoveryResolutionResult,
+} from './discovery/discovery-orchestrator';
+export type {
+  DiscoverySourceOrigin,
+  MatchConfidence,
+  SubtitleDiscoveryCandidate,
+  SubtitleDiscoveryProvider,
+} from './discovery/discovery-types';
+export { LocalDiscoveryProvider } from './discovery/local-discovery-provider';
+export {
+  OpenSubtitlesDiscoveryProvider,
+  type OpenSubtitlesDiscoveryOptions,
+} from './discovery/opensubtitles-discovery-provider';
+export {
+  matchBilingualPair,
+  selectBestCandidate,
+  type BilingualMatchIncomplete,
+  type BilingualMatchResult,
+  type BilingualMatchSuccess,
+} from './discovery/subtitle-matcher';
+export {
+  startStremioAddonServer,
+  type RunningStremioAddonServer,
+  type StremioAddonServerOptions,
+} from './server/server';
 
 const isDirectRun =
   typeof process !== 'undefined' && isDirectExecution(import.meta.url, process.argv[1]);
@@ -119,6 +151,8 @@ if (isDirectRun) {
   const rawPort = process.env.PORT ?? '7000';
   const port = Number(rawPort);
   const persistenceEnabled = process.env.SUBTITLEME_PERSISTENCE === '1';
+  const openSubtitlesOptIn = process.env.OPENSUBTITLES_ENABLED === '1';
+  const openSubtitlesApiKey = (process.env.OPENSUBTITLES_API_KEY ?? '').trim();
 
   void (async () => {
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -142,6 +176,17 @@ if (isDirectRun) {
         enabled: persistenceEnabled,
         ...(process.env.SUBTITLEME_DATA_DIR ? { dataDir: process.env.SUBTITLEME_DATA_DIR } : {}),
       },
+      ...(openSubtitlesOptIn && openSubtitlesApiKey.length > 0
+        ? {
+            openSubtitlesOptions: {
+              enabled: true,
+              apiKey: openSubtitlesApiKey,
+              ...(process.env.OPENSUBTITLES_BEARER_TOKEN
+                ? { bearerToken: process.env.OPENSUBTITLES_BEARER_TOKEN }
+                : {}),
+            },
+          }
+        : {}),
     });
 
     attachGracefulShutdown(running, (signal) => {
@@ -155,6 +200,9 @@ if (isDirectRun) {
     console.log(`Manifest URL: ${running.baseUrl}/manifest.json`);
     console.log(
       `Local Persistence: ${running.persistence.isEnabled() ? `ENABLED (${running.persistence.getDataDir()})` : 'DISABLED (memory-only; set SUBTITLEME_PERSISTENCE=1 or enable in /configure)'}`,
+    );
+    console.log(
+      `OpenSubtitles Opt-In: ${openSubtitlesOptIn && openSubtitlesApiKey.length > 0 ? 'ENABLED (REST API v1)' : 'DISABLED (default; local-only)'}`,
     );
   })().catch((err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);

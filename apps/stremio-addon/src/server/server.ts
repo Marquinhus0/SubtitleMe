@@ -12,7 +12,13 @@ import {
 import { CompanionSubtitleStore } from '../companion/companion-store';
 import { GeneratedSubtitleCache } from '../delivery/generated-subtitle-cache';
 import { SubtitleFileService } from '../delivery/subtitle-file-service';
-import { LocalFileSubtitleSource } from '../sources/local-file-subtitle-source';
+import { SubtitleDiscoveryOrchestrator } from '../discovery/discovery-orchestrator';
+import type { SubtitleDiscoveryProvider } from '../discovery/discovery-types';
+import { LocalDiscoveryProvider } from '../discovery/local-discovery-provider';
+import {
+  OpenSubtitlesDiscoveryProvider,
+  type OpenSubtitlesDiscoveryOptions,
+} from '../discovery/opensubtitles-discovery-provider';
 import type { SubtitleSourceProvider } from '../sources/subtitle-source.interface';
 import { applyCorsHeaders, handleCustomRoutes } from './routes';
 
@@ -20,7 +26,12 @@ export interface StremioAddonServerOptions {
   port?: number;
   host?: string;
   baseUrl?: string;
+  /** Optional legacy single sourceProvider override (primarily for tests/fixtures). */
   sourceProvider?: SubtitleSourceProvider;
+  /** Optional custom discovery providers (defaults to LocalDiscoveryProvider + opt-in OpenSubtitles). */
+  discoveryProviders?: readonly SubtitleDiscoveryProvider[];
+  /** Opt-in OpenSubtitles REST API v1 configuration (disabled by default). */
+  openSubtitlesOptions?: OpenSubtitlesDiscoveryOptions;
   cache?: GeneratedSubtitleCache;
   companionStore?: CompanionSubtitleStore;
   companionAuth?: CompanionAuth;
@@ -37,13 +48,15 @@ export interface RunningStremioAddonServer {
   readonly companionStore: CompanionSubtitleStore;
   readonly companionAuth: CompanionAuth;
   readonly persistence: CompanionPersistence;
+  readonly discoveryOrchestrator: SubtitleDiscoveryOrchestrator;
   close(): Promise<void>;
 }
 
 /**
  * Starts the local Stremio Addon + Local Companion HTTP server exclusively on `127.0.0.1`.
  * Combines the official `stremio-addon-sdk` router (`getRouter`) with `/configure`,
- * `/companion/*`, `/generated/:token.vtt`, and `/health`.
+ * `/companion/*`, `/generated/:token.vtt`, and `/health`, backed by the Sprint 15.4
+ * Subtitle Discovery Orchestrator (`LocalDiscoveryProvider` + opt-in external providers).
  */
 export async function startStremioAddonServer(
   options: StremioAddonServerOptions = {},
@@ -66,7 +79,16 @@ export async function startStremioAddonServer(
     });
   const companionAuth = options.companionAuth ?? new CompanionAuth();
 
-  const sourceProvider = options.sourceProvider ?? new LocalFileSubtitleSource(companionStore);
+  // Build discovery providers: local Companion always first, optional opt-in OpenSubtitles second
+  const providers: SubtitleDiscoveryProvider[] = options.discoveryProviders
+    ? [...options.discoveryProviders]
+    : [
+        new LocalDiscoveryProvider(companionStore),
+        ...(options.openSubtitlesOptions?.enabled === true
+          ? [new OpenSubtitlesDiscoveryProvider(options.openSubtitlesOptions)]
+          : []),
+      ];
+  const discoveryOrchestrator = new SubtitleDiscoveryOrchestrator(providers);
 
   // Base URL is finalized once the OS assigns an ephemeral port (when port === 0)
   let resolvedBaseUrl = options.baseUrl ?? `http://${host}:${requestedPort}`;
@@ -77,7 +99,9 @@ export async function startStremioAddonServer(
 
   builder.defineSubtitlesHandler((args) => {
     const handler = createSubtitlesHandler({
-      sourceProvider,
+      ...(options.sourceProvider !== undefined
+        ? { sourceProvider: options.sourceProvider }
+        : { discoveryOrchestrator }),
       fileService,
     });
     return handler(args);
@@ -137,6 +161,7 @@ export async function startStremioAddonServer(
     companionStore,
     companionAuth,
     persistence,
+    discoveryOrchestrator,
     close(): Promise<void> {
       return new Promise((resolveClose, rejectClose) => {
         server.close((err) => {
