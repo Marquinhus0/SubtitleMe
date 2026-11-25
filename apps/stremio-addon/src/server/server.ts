@@ -12,6 +12,8 @@ import {
 import { CompanionSubtitleStore } from '../companion/companion-store';
 import { GeneratedSubtitleCache } from '../delivery/generated-subtitle-cache';
 import { SubtitleFileService } from '../delivery/subtitle-file-service';
+import { RuntimeSettingsStore } from '../config/runtime-settings';
+import { join } from 'node:path';
 import { SubtitleDiscoveryOrchestrator } from '../discovery/discovery-orchestrator';
 import type { SubtitleDiscoveryProvider } from '../discovery/discovery-types';
 import { LocalDiscoveryProvider } from '../discovery/local-discovery-provider';
@@ -19,6 +21,14 @@ import {
   OpenSubtitlesDiscoveryProvider,
   type OpenSubtitlesDiscoveryOptions,
 } from '../discovery/opensubtitles-discovery-provider';
+import {
+  StremioOpenSubtitlesV3Provider,
+  type StremioOpenSubtitlesV3Options,
+} from '../discovery/stremio-opensubtitles-v3-provider';
+import {
+  SubtitleSyncAddonProvider,
+  type SubtitleSyncProviderOptions,
+} from '../discovery/subtitle-sync-provider';
 import type { SubtitleSourceProvider } from '../sources/subtitle-source.interface';
 import { applyCorsHeaders, handleCustomRoutes } from './routes';
 
@@ -32,6 +42,12 @@ export interface StremioAddonServerOptions {
   discoveryProviders?: readonly SubtitleDiscoveryProvider[];
   /** Opt-in OpenSubtitles REST API v1 configuration (disabled by default). */
   openSubtitlesOptions?: OpenSubtitlesDiscoveryOptions;
+  /** Opt-in Stremio OpenSubtitles v3 addon configuration (disabled by default). */
+  openSubtitlesV3Options?: StremioOpenSubtitlesV3Options;
+  /** Opt-in Subtitle Sync (subtitlesync.stream) addon configuration (disabled by default). */
+  subtitleSyncOptions?: SubtitleSyncProviderOptions;
+  /** Optional diagnostic callback invoked on Stremio subtitle requests. */
+  onSubtitleRequest?: (info: { type: string; id: string; returnedCount: number }) => void;
   cache?: GeneratedSubtitleCache;
   companionStore?: CompanionSubtitleStore;
   companionAuth?: CompanionAuth;
@@ -79,15 +95,19 @@ export async function startStremioAddonServer(
     });
   const companionAuth = options.companionAuth ?? new CompanionAuth();
 
-  // Build discovery providers: local Companion always first, optional opt-in OpenSubtitles second
+  // Build discovery providers: local Companion first, then Subtitle Sync, OpenSubtitles v1, and OpenSubtitles v3
+  const subtitleSyncAddon = new SubtitleSyncAddonProvider(
+    options.subtitleSyncOptions ?? { enabled: false },
+  );
+  const openSubtitlesV1 = new OpenSubtitlesDiscoveryProvider(
+    options.openSubtitlesOptions ?? { enabled: false },
+  );
+  const openSubtitlesV3 = new StremioOpenSubtitlesV3Provider(
+    options.openSubtitlesV3Options ?? { enabled: false },
+  );
   const providers: SubtitleDiscoveryProvider[] = options.discoveryProviders
     ? [...options.discoveryProviders]
-    : [
-        new LocalDiscoveryProvider(companionStore),
-        ...(options.openSubtitlesOptions?.enabled === true
-          ? [new OpenSubtitlesDiscoveryProvider(options.openSubtitlesOptions)]
-          : []),
-      ];
+    : [new LocalDiscoveryProvider(companionStore), subtitleSyncAddon, openSubtitlesV1, openSubtitlesV3];
   const discoveryOrchestrator = new SubtitleDiscoveryOrchestrator(providers);
 
   // Base URL is finalized once the OS assigns an ephemeral port (when port === 0)
@@ -97,14 +117,26 @@ export async function startStremioAddonServer(
   const manifest = createAddonManifest();
   const builder = new addonBuilder(manifest);
 
-  builder.defineSubtitlesHandler((args) => {
+  const settingsStore = new RuntimeSettingsStore(join(persistence.getDataDir(), 'settings.json'));
+  if (persistence.isEnabled()) {
+    settingsStore.load();
+  }
+
+  builder.defineSubtitlesHandler(async (args) => {
     const handler = createSubtitlesHandler({
+      settingsStore,
       ...(options.sourceProvider !== undefined
         ? { sourceProvider: options.sourceProvider }
         : { discoveryOrchestrator }),
       fileService,
     });
-    return handler(args);
+    const result = await handler(args);
+    options.onSubtitleRequest?.({
+      type: args?.type ?? 'unknown',
+      id: args?.id ?? '',
+      returnedCount: result.subtitles.length,
+    });
+    return result;
   });
 
   const addonInterface = builder.getInterface();
@@ -119,6 +151,11 @@ export async function startStremioAddonServer(
           auth: companionAuth,
           store: companionStore,
           getBaseUrl: () => resolvedBaseUrl,
+          openSubtitlesV1,
+          openSubtitlesV3,
+          subtitleSyncAddon,
+          settingsStore,
+          persistenceEnabled: () => persistence.isEnabled(),
         },
       })
     ) {

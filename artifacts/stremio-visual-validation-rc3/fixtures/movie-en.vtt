@@ -1,0 +1,20 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:05.000
+Hello! Opening simultaneous line in English.
+
+00:00:12.000 --> 00:00:16.000
+Independent English line with no Portuguese overlap.
+
+00:00:18.000 --> 00:00:26.000
+First multiline cue after silent interval.
+Second line preserved cleanly in English — «SubtitleMe».
+
+00:00:30.000 --> 00:01:00.000
+[00:30 - EN] Active bilingual subtitle in Stremio Desktop.
+
+00:02:00.000 --> 00:05:00.000
+[02:00 - EN] Continuous stability, pause, and timeline seek check.
+
+00:06:00.000 --> 00:10:30.000
+[06:00 - EN] Continuous 10-minute validation without duplication.

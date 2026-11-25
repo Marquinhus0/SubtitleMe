@@ -1,0 +1,12 @@
+{
+  "artifact": "dist/release/subtitleme-stremio-v1.0.0-rc.3.tar.gz",
+  "version": "1.0.0-rc.3",
+  "expectedSha256": "c1ab3cc45a6911226ab126bd04abeab137d9dbad06ebd0fcb3e61f53e896290d",
+  "actualSha256": "c1ab3cc45a6911226ab126bd04abeab137d9dbad06ebd0fcb3e61f53e896290d",
+  "verified": true,
+  "sizeBytes": 2520436,
+  "extractedFileCount": 5616,
+  "extractedOutsideMonorepo": true,
+  "extractedDir": "%TEMP%\\subtitleme-rc3-visual-validation",
+  "verifiedAt": "2026-11-25T13:06:34-03:00"
+}

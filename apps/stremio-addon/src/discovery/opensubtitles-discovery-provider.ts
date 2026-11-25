@@ -13,6 +13,7 @@ import type {
   SubtitleDiscoveryCandidate,
   SubtitleDiscoveryProvider,
 } from './discovery-types';
+import { computeReleaseSimilarity } from './release-similarity';
 
 export interface OpenSubtitlesDiscoveryOptions {
   /** Strictly opt-in. Defaults to `false`. */
@@ -77,9 +78,9 @@ export class OpenSubtitlesDiscoveryProvider implements SubtitleDiscoveryProvider
   public readonly name = 'opensubtitles-rest-v1-discovery';
   public readonly origin = 'external' as const;
 
-  private readonly enabled: boolean;
-  private readonly apiKey: string;
-  private readonly bearerToken: string | undefined;
+  private enabled: boolean;
+  private apiKey: string;
+  private bearerToken: string | undefined;
   private readonly userAgent: string;
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
@@ -112,6 +113,30 @@ export class OpenSubtitlesDiscoveryProvider implements SubtitleDiscoveryProvider
 
   public isEnabled(): boolean {
     return this.enabled && this.apiKey.length > 0;
+  }
+
+  public hasApiKey(): boolean {
+    return this.apiKey.length > 0;
+  }
+
+  /**
+   * Updates runtime opt-in OpenSubtitles REST API v1 configuration in-memory without logging secrets.
+   */
+  public configure(update: { enabled?: boolean; apiKey?: string; bearerToken?: string }): void {
+    if (typeof update.apiKey === 'string') {
+      this.apiKey = update.apiKey.trim();
+    }
+    if (update.bearerToken !== undefined) {
+      this.bearerToken = update.bearerToken.trim() || undefined;
+    }
+    if (typeof update.enabled === 'boolean') {
+      this.enabled = update.enabled;
+    }
+    if (!this.enabled) {
+      this.setStatus('DISABLED');
+    } else if (this.apiKey.length === 0) {
+      this.setStatus('MISSING_API_KEY');
+    }
   }
 
   public getDiagnostics(): OpenSubtitlesFetchDiagnostics {
@@ -213,12 +238,16 @@ export class OpenSubtitlesDiscoveryProvider implements SubtitleDiscoveryProvider
 
     const numericImdb = identity.imdbId.replace(/^tt/i, '');
     const params = new URLSearchParams();
-    params.set('imdb_id', numericImdb);
-    params.set('languages', osLang);
     if (identity.season !== undefined && identity.episode !== undefined) {
+      params.set('parent_imdb_id', numericImdb);
       params.set('season_number', String(identity.season));
       params.set('episode_number', String(identity.episode));
+    } else {
+      params.set('imdb_id', numericImdb);
     }
+    params.set('languages', osLang);
+    params.set('order_by', 'download_count');
+    params.set('order_direction', 'desc');
     if (identity.videoHash) {
       params.set('moviehash', identity.videoHash);
     }
@@ -326,6 +355,13 @@ export class OpenSubtitlesDiscoveryProvider implements SubtitleDiscoveryProvider
         if (typeof fd.episode_number === 'number') candidateEpisode = fd.episode_number;
       }
 
+      const isHashMatch =
+        Boolean(identity.videoHash) &&
+        (attrs as { moviehash_match?: unknown }).moviehash_match === true;
+      const releaseScore = computeReleaseSimilarity(
+        identity.filename,
+        releaseName ?? fileName,
+      );
       const format: SubtitleFormat = fileName && /\.vtt$/i.test(fileName) ? 'vtt' : 'srt';
 
       results.push({
@@ -338,13 +374,17 @@ export class OpenSubtitlesDiscoveryProvider implements SubtitleDiscoveryProvider
         mediaType: identity.mediaType,
         ...(candidateSeason !== undefined ? { season: candidateSeason } : {}),
         ...(candidateEpisode !== undefined ? { episode: candidateEpisode } : {}),
-        confidence: identity.videoHash ? 'exact' : 'high',
-        matchReason: `OpenSubtitles REST API v1 match for ${identity.canonicalId} (${normalizedLanguage}).`,
+        confidence: isHashMatch ? 'exact' : 'high',
+        matchReason: isHashMatch
+          ? `Exact OpenSubtitles moviehash match for ${identity.canonicalId} (${normalizedLanguage}).`
+          : `OpenSubtitles REST API v1 match for ${identity.canonicalId} (${normalizedLanguage}).`,
         metadata: {
           ...(fileName !== undefined ? { filename: fileName } : {}),
           fileId,
           ...(releaseName !== undefined ? { releaseName } : {}),
           ...(downloadCount !== undefined ? { downloadCount } : {}),
+          releaseScore,
+          moviehashMatch: isHashMatch,
         },
         loadAsset: () => this.downloadAuthorizedAsset(fileId, normalizedLanguage, fileName),
       });

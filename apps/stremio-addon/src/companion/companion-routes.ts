@@ -11,6 +11,10 @@ import {
   MAX_COMPANION_SUBTITLE_BYTES,
 } from './companion-config';
 import type { CompanionSubtitleStore } from './companion-store';
+import type { OpenSubtitlesDiscoveryProvider } from '../discovery/opensubtitles-discovery-provider';
+import type { StremioOpenSubtitlesV3Provider } from '../discovery/stremio-opensubtitles-v3-provider';
+import type { SubtitleSyncAddonProvider } from '../discovery/subtitle-sync-provider';
+import type { RuntimeSettingsStore } from '../config/runtime-settings';
 import type {
   CompanionHealthResponse,
   CompanionPreviewCue,
@@ -24,6 +28,11 @@ export interface CompanionRoutesDeps {
   readonly auth: CompanionAuth;
   readonly store: CompanionSubtitleStore;
   readonly getBaseUrl: () => string;
+  readonly openSubtitlesV1?: OpenSubtitlesDiscoveryProvider;
+  readonly openSubtitlesV3?: StremioOpenSubtitlesV3Provider;
+  readonly subtitleSyncAddon?: SubtitleSyncAddonProvider;
+  readonly settingsStore?: RuntimeSettingsStore;
+  readonly persistenceEnabled?: () => boolean;
   readonly maxSubtitleBytes?: number;
   readonly maxJsonBodyBytes?: number;
 }
@@ -171,6 +180,143 @@ export function handleCompanionRoutes(
     sendJson(res, 200, {
       revoked: true,
       message: 'Session revoked. Reload /configure to obtain a fresh local session token.',
+    });
+    return true;
+  }
+
+  // GET /companion/settings — live Studio preferences (no secrets)
+  if (req.method === 'GET' && urlPath === '/companion/settings') {
+    const authResult = deps.auth.authorizeRequest(req, false);
+    if (!authResult.authorized) {
+      sendJson(res, authResult.statusCode, { error: authResult.reason });
+      return true;
+    }
+    sendJson(res, 200, {
+      configured: deps.settingsStore?.isConfigured() ?? false,
+      settings: deps.settingsStore?.get() ?? {},
+    });
+    return true;
+  }
+
+  // POST /companion/settings — save live Studio preferences; applied instantly to Stremio (no reinstall)
+  if (req.method === 'POST' && urlPath === '/companion/settings') {
+    const authResult = deps.auth.authorizeRequest(req, true);
+    if (!authResult.authorized) {
+      sendJson(res, authResult.statusCode, { error: authResult.reason });
+      return true;
+    }
+    void readJsonBody(req, 8192).then((bodyResult) => {
+      if (!bodyResult.ok) {
+        sendJson(res, bodyResult.statusCode, { error: bodyResult.error });
+        return;
+      }
+      const stringConfig: Record<string, string> = {};
+      for (const [k, v] of Object.entries((bodyResult.data ?? {}) as Record<string, unknown>)) {
+        if (typeof v === 'string') stringConfig[k] = v;
+        else if (typeof v === 'number' || typeof v === 'boolean') stringConfig[k] = String(v);
+      }
+      const check = validateAddonConfig(stringConfig);
+      if (!check.valid) {
+        sendJson(res, 400, { error: check.errors.join(' ') });
+        return;
+      }
+      deps.settingsStore?.set(stringConfig, deps.persistenceEnabled?.() ?? false);
+      sendJson(res, 200, { saved: true, settings: deps.settingsStore?.get() ?? {} });
+    });
+    return true;
+  }
+
+  // GET /companion/opensubtitles — inspect external OpenSubtitles v1/v3 & Subtitle Sync opt-in status (never leaks keys/URLs)
+  if (req.method === 'GET' && urlPath === '/companion/opensubtitles') {
+    const authResult = deps.auth.authorizeRequest(req, false);
+    if (!authResult.authorized) {
+      sendJson(res, authResult.statusCode, { error: authResult.reason });
+      return true;
+    }
+    sendJson(res, 200, {
+      subtitleSync: {
+        enabled: deps.subtitleSyncAddon?.isEnabled() ?? false,
+        hasUrl: deps.subtitleSyncAddon?.hasConfiguredUrl() ?? false,
+      },
+      v1: {
+        enabled: deps.openSubtitlesV1?.isEnabled() ?? false,
+        hasApiKey: deps.openSubtitlesV1?.hasApiKey() ?? false,
+        diagnostics: deps.openSubtitlesV1?.getDiagnostics() ?? { lastStatus: 'DISABLED' },
+      },
+      v3: {
+        enabled: deps.openSubtitlesV3?.isEnabled() ?? false,
+      },
+    });
+    return true;
+  }
+
+  // POST /companion/opensubtitles — configure runtime Subtitle Sync URL, OpenSubtitles REST API v1 key & Stremio v3
+  if (req.method === 'POST' && urlPath === '/companion/opensubtitles') {
+    const authResult = deps.auth.authorizeRequest(req, true);
+    if (!authResult.authorized) {
+      sendJson(res, authResult.statusCode, { error: authResult.reason });
+      return true;
+    }
+
+    void readJsonBody(req, 8192).then((bodyResult) => {
+      if (!bodyResult.ok) {
+        sendJson(res, bodyResult.statusCode, { error: bodyResult.error });
+        return;
+      }
+      const payload = (bodyResult.data ?? {}) as {
+        subtitleSyncEnabled?: unknown;
+        subtitleSyncUrl?: unknown;
+        v1Enabled?: unknown;
+        apiKey?: unknown;
+        v3Enabled?: unknown;
+      };
+
+      if (deps.subtitleSyncAddon) {
+        const syncUpdate: { enabled?: boolean; manifestUrl?: string } = {};
+        if (typeof payload.subtitleSyncUrl === 'string') {
+          syncUpdate.manifestUrl = payload.subtitleSyncUrl;
+        }
+        if (typeof payload.subtitleSyncEnabled === 'boolean') {
+          syncUpdate.enabled = payload.subtitleSyncEnabled;
+        }
+        const check = deps.subtitleSyncAddon.configure(syncUpdate);
+        if (!check.validUrl) {
+          sendJson(res, 400, {
+            error: 'Invalid Subtitle Sync URL. Provide an https://.../manifest.json URL.',
+          });
+          return;
+        }
+      }
+
+      if (deps.openSubtitlesV1) {
+        const update: { enabled?: boolean; apiKey?: string } = {};
+        if (typeof payload.apiKey === 'string') {
+          update.apiKey = payload.apiKey;
+        }
+        if (typeof payload.v1Enabled === 'boolean') {
+          update.enabled = payload.v1Enabled;
+        }
+        deps.openSubtitlesV1.configure(update);
+      }
+
+      if (deps.openSubtitlesV3 && typeof payload.v3Enabled === 'boolean') {
+        deps.openSubtitlesV3.setEnabled(payload.v3Enabled);
+      }
+
+      sendJson(res, 200, {
+        subtitleSync: {
+          enabled: deps.subtitleSyncAddon?.isEnabled() ?? false,
+          hasUrl: deps.subtitleSyncAddon?.hasConfiguredUrl() ?? false,
+        },
+        v1: {
+          enabled: deps.openSubtitlesV1?.isEnabled() ?? false,
+          hasApiKey: deps.openSubtitlesV1?.hasApiKey() ?? false,
+          diagnostics: deps.openSubtitlesV1?.getDiagnostics() ?? { lastStatus: 'DISABLED' },
+        },
+        v3: {
+          enabled: deps.openSubtitlesV3?.isEnabled() ?? false,
+        },
+      });
     });
     return true;
   }

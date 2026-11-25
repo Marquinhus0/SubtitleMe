@@ -3,7 +3,7 @@ import { handleCompanionRoutes, type CompanionRoutesDeps } from '../companion/co
 import { renderConfigurePage } from '../configure/configure-page';
 import { OPAQUE_TOKEN_REGEX, type SubtitleFileService } from '../delivery/subtitle-file-service';
 
-const GENERATED_VTT_ROUTE_RE = /^\/generated\/([a-f0-9]{32,64})\.vtt$/;
+const GENERATED_SUBTITLE_ROUTE_RE = /^\/generated\/([a-f0-9]{32,64})\.(vtt|srt|ass)$/;
 
 export interface CustomRoutesContext {
   readonly fileService: SubtitleFileService;
@@ -12,14 +12,17 @@ export interface CustomRoutesContext {
 }
 
 /**
- * Applies Stremio protocol CORS headers ONLY to Stremio protocol endpoints
- * (`/manifest.json`, `/subtitles/...`, `/health`) and `/generated/:token.vtt`.
- * Administrative `/companion/*` routes NEVER receive wildcard `*` CORS.
+ * Applies Stremio protocol CORS + Chromium Private Network Access (PNA) headers ONLY to
+ * Stremio protocol endpoints (`/manifest.json`, `/subtitles/...`, `/health`) and
+ * `/generated/:token.(vtt|srt)` so Stremio 5 Desktop (`https://web.stremio.com` WebView2)
+ * can fetch loopback tracks without PNA preflight blocks.
+ * Administrative `/companion/*` routes NEVER receive wildcard `*` CORS or PNA headers.
  */
 export function applyCorsHeaders(res: ServerResponse): void {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', '*');
+  res.setHeader('Access-Control-Allow-Private-Network', 'true');
 }
 
 /**
@@ -90,30 +93,44 @@ export function handleCustomRoutes(
     return true;
   }
 
-  if (req.method === 'GET' && urlPath.startsWith('/generated/')) {
+  if ((req.method === 'GET' || req.method === 'HEAD') && urlPath.startsWith('/generated/')) {
     applyCorsHeaders(res);
-    const match = GENERATED_VTT_ROUTE_RE.exec(urlPath);
+    const match = GENERATED_SUBTITLE_ROUTE_RE.exec(urlPath);
     const token = match?.[1];
+    const requestedExt = match?.[2] ?? 'vtt';
 
     if (!token || !OPAQUE_TOKEN_REGEX.test(token)) {
       res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ error: 'Subtitle file not found.' }));
+      res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ error: 'Subtitle file not found.' }));
       return true;
     }
 
-    const vttContent = context.fileService.getVttByToken(token);
-    if (vttContent === null) {
+    const payloadContent =
+      requestedExt === 'srt'
+        ? context.fileService.getSrtByToken(token)
+        : context.fileService.getVttByToken(token);
+    if (payloadContent === null) {
       res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ error: 'Subtitle file not found or expired.' }));
+      res.end(
+        req.method === 'HEAD'
+          ? undefined
+          : JSON.stringify({ error: 'Subtitle file not found or expired.' }),
+      );
       return true;
     }
 
+    const contentType =
+      requestedExt === 'srt'
+        ? 'application/x-subrip; charset=utf-8'
+        : requestedExt === 'ass'
+          ? 'text/x-ssa; charset=utf-8'
+          : 'text/vtt; charset=utf-8';
     res.writeHead(200, {
-      'Content-Type': 'text/vtt; charset=utf-8',
+      'Content-Type': contentType,
       'Cache-Control': 'private, no-store',
       'X-Content-Type-Options': 'nosniff',
     });
-    res.end(vttContent);
+    res.end(req.method === 'HEAD' ? undefined : payloadContent);
     return true;
   }
 

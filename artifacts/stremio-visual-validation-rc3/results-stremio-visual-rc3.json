@@ -1,0 +1,18 @@
+{
+  "sprint": "15.5",
+  "addonVersion": "1.0.0-rc.3",
+  "rcSha256": "c1ab3cc45a6911226ab126bd04abeab137d9dbad06ebd0fcb3e61f53e896290d",
+  "decision": "REJECTED",
+  "gaStatus": "NO-GO",
+  "environment": {
+    "os": "Microsoft Windows NT 10.0.26300.0 (Windows 11 X64)",
+    "nodeVersion": "v24.19.0",
+    "stremioVersion": "5.0.28"
+  },
+  "openSubtitlesLiveStatus": "NOT TESTED LIVE",
+  "screenshotsCaptured": 0,
+  "rootCause": "Missing Access-Control-Allow-Private-Network: true header for Stremio 5 HTTPS WebView2 -> http://127.0.0.1:7000 requests, plus omitted idPrefixes in manifest.ts.",
+  "scenariosPassed": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+  "scenariosFailed": [11, 12],
+  "scenariosBlocked": [13, 14, 15]
+}

@@ -1,0 +1,24 @@
+1
+00:00:01,000 --> 00:00:05,000
+Olá! Fala simultânea inicial em português.
+
+2
+00:00:06,000 --> 00:00:11,000
+Fala independente apenas em português com acentuação: áéíóúãõç — «SubtitleMe».
+
+3
+00:00:18,000 --> 00:00:26,000
+Primeira linha multilinha após intervalo sem diálogo.
+Segunda linha preservada em português: coração, ação, bênção.
+
+4
+00:00:30,000 --> 00:01:00,000
+[00:30 - PT-BR] Legenda bilíngue ativa no Stremio Desktop.
+
+5
+00:02:00,000 --> 00:05:00,000
+[02:00 - PT-BR] Teste de estabilidade contínua, pausa e busca.
+
+6
+00:06:00,000 --> 00:10:30,000
+[06:00 - PT-BR] Validação contínua até 10 minutos sem duplicação.

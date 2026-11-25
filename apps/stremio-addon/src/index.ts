@@ -132,6 +132,17 @@ export {
   type OpenSubtitlesDiscoveryOptions,
 } from './discovery/opensubtitles-discovery-provider';
 export {
+  STREMIO_OPENSUBTITLES_V3_BASE_URL,
+  StremioOpenSubtitlesV3Provider,
+  type StremioOpenSubtitlesV3Options,
+} from './discovery/stremio-opensubtitles-v3-provider';
+export {
+  SubtitleSyncAddonProvider,
+  type SubtitleSyncProviderOptions,
+} from './discovery/subtitle-sync-provider';
+export { computeReleaseSimilarity } from './discovery/release-similarity';
+export { alignSecondaryCuesToPrimary, type AutoSyncAlignmentResult } from './delivery/auto-sync';
+export {
   matchBilingualPair,
   selectBestCandidate,
   type BilingualMatchIncomplete,
@@ -153,6 +164,8 @@ if (isDirectRun) {
   const persistenceEnabled = process.env.SUBTITLEME_PERSISTENCE === '1';
   const openSubtitlesOptIn = process.env.OPENSUBTITLES_ENABLED === '1';
   const openSubtitlesApiKey = (process.env.OPENSUBTITLES_API_KEY ?? '').trim();
+  const openSubtitlesV3OptIn = process.env.OPENSUBTITLES_V3_ENABLED !== '0';
+  const subtitleSyncUrl = (process.env.SUBTITLE_SYNC_URL ?? '').trim();
 
   void (async () => {
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -187,6 +200,26 @@ if (isDirectRun) {
             },
           }
         : {}),
+      ...(openSubtitlesV3OptIn
+        ? {
+            openSubtitlesV3Options: {
+              enabled: true,
+            },
+          }
+        : {}),
+      ...(subtitleSyncUrl.length > 0
+        ? {
+            subtitleSyncOptions: {
+              enabled: true,
+              manifestUrl: subtitleSyncUrl,
+            },
+          }
+        : {}),
+      onSubtitleRequest: ({ type, id, returnedCount }) => {
+        console.log(
+          `[SubtitleMe] Stremio subtitle query: type=${type} id=${id} -> ${returnedCount} track(s)`,
+        );
+      },
     });
 
     attachGracefulShutdown(running, (signal) => {
@@ -202,7 +235,7 @@ if (isDirectRun) {
       `Local Persistence: ${running.persistence.isEnabled() ? `ENABLED (${running.persistence.getDataDir()})` : 'DISABLED (memory-only; set SUBTITLEME_PERSISTENCE=1 or enable in /configure)'}`,
     );
     console.log(
-      `OpenSubtitles Opt-In: ${openSubtitlesOptIn && openSubtitlesApiKey.length > 0 ? 'ENABLED (REST API v1)' : 'DISABLED (default; local-only)'}`,
+      `OpenSubtitles Opt-In: v1=${openSubtitlesOptIn && openSubtitlesApiKey.length > 0 ? 'ENABLED' : 'DISABLED'}, v3=${openSubtitlesV3OptIn ? 'ENABLED' : 'DISABLED'} (configurable at ${running.baseUrl}/configure)`,
     );
   })().catch((err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);

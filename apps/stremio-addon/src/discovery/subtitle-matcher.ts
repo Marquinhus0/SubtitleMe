@@ -25,12 +25,15 @@ const CONFIDENCE_RANK: Record<MatchConfidence, number> = {
 
 function scoreCandidate(candidate: SubtitleDiscoveryCandidate): number {
   const originBonus = candidate.origin === 'local' ? 1000 : 100;
-  const confidenceScore = CONFIDENCE_RANK[candidate.confidence] * 10;
+  const confidenceScore = CONFIDENCE_RANK[candidate.confidence] * 25;
+  const hashBonus = candidate.metadata.moviehashMatch === true ? 120 : 0;
+  const releaseBonus =
+    typeof candidate.metadata.releaseScore === 'number' ? candidate.metadata.releaseScore : 0;
   const downloadsBonus =
     typeof candidate.metadata.downloadCount === 'number'
       ? Math.min(candidate.metadata.downloadCount / 100_000, 9)
       : 0;
-  return originBonus + confidenceScore + downloadsBonus;
+  return originBonus + confidenceScore + hashBonus + releaseBonus + downloadsBonus;
 }
 
 /**

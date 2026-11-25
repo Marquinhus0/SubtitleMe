@@ -23,6 +23,24 @@ export function serializeStremioConfigForUrl(config: StremioAddonConfig): string
   if (config.bilingualEnabled) {
     payload.bilingualEnabled = 'on';
   }
+  if (config.primaryColor && config.primaryColor !== 'none') {
+    payload.primaryColor = config.primaryColor;
+  }
+  if (config.secondaryColor && config.secondaryColor !== 'none') {
+    payload.secondaryColor = config.secondaryColor;
+  }
+  if (config.secondaryStyle && config.secondaryStyle !== 'none') {
+    payload.secondaryStyle = config.secondaryStyle;
+  }
+  if (config.verticalPosition && config.verticalPosition !== 'bottom') {
+    payload.verticalPosition = config.verticalPosition;
+  }
+  if (config.autoSync) {
+    payload.autoSync = 'on';
+  }
+  if (config.outputFormat && config.outputFormat !== 'vtt') {
+    payload.outputFormat = config.outputFormat;
+  }
   return encodeURIComponent(JSON.stringify(payload));
 }
 

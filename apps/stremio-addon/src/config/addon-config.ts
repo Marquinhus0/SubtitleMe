@@ -19,6 +19,22 @@ export const STREMIO_SUPPORTED_LANGUAGES: readonly StremioLanguageDescriptor[] =
   { bcp47: 'ja', iso639_2: 'jpn', label: 'Japanese' },
 ];
 
+export type SecondarySubtitleStyle = 'none' | 'italic' | 'brackets' | 'italic-brackets';
+export type VerticalSubtitlePosition = 'bottom' | 'raised' | 'high' | 'top';
+export type StremioOutputFormat = 'vtt' | 'srt' | 'ass';
+
+export const ALLOWED_SUBTITLE_COLORS = [
+  'none',
+  '#FFFFFF',
+  '#FFD60A',
+  '#36CFC9',
+  '#CBD5E1',
+  '#8B7CFF',
+  '#73D13D',
+  '#FFA940',
+  '#FF85C0',
+] as const;
+
 export interface StremioAddonConfig {
   primaryLanguage: string;
   secondaryLanguage: string;
@@ -26,6 +42,12 @@ export interface StremioAddonConfig {
   secondaryOffsetMs: number;
   order: SubtitleOrder;
   bilingualEnabled: boolean;
+  primaryColor?: string;
+  secondaryColor?: string;
+  secondaryStyle?: SecondarySubtitleStyle;
+  verticalPosition?: VerticalSubtitlePosition;
+  autoSync?: boolean;
+  outputFormat?: StremioOutputFormat;
 }
 
 export const DEFAULT_ADDON_CONFIG: StremioAddonConfig = {

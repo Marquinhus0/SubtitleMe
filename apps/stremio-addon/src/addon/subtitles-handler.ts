@@ -1,4 +1,5 @@
-import { findLanguageDescriptor } from '../config/addon-config';
+import { findLanguageDescriptor, type StremioAddonConfig } from '../config/addon-config';
+import type { RuntimeSettingsStore } from '../config/runtime-settings';
 import { validateAddonConfig } from '../config/config-validator';
 import type { SubtitleFileService } from '../delivery/subtitle-file-service';
 import { parseStremioContentId } from '../discovery/content-identifier';
@@ -9,7 +10,17 @@ import type {
   StremioSubtitlesResponse,
 } from '../types/stremio';
 
+function hasCustomStyling(config: StremioAddonConfig): boolean {
+  return (
+    (config.primaryColor !== undefined && config.primaryColor !== 'none') ||
+    (config.secondaryColor !== undefined && config.secondaryColor !== 'none') ||
+    (config.secondaryStyle !== undefined && config.secondaryStyle !== 'none') ||
+    (config.verticalPosition !== undefined && config.verticalPosition !== 'bottom')
+  );
+}
+
 export interface SubtitlesHandlerDeps {
+  settingsStore?: RuntimeSettingsStore;
   sourceProvider?: SubtitleSourceProvider;
   discoveryOrchestrator?: SubtitleDiscoveryOrchestrator;
   fileService: SubtitleFileService;
@@ -42,7 +53,10 @@ export function createSubtitlesHandler(deps: SubtitlesHandlerDeps) {
       return { subtitles: [] };
     }
 
-    const validation = validateAddonConfig(args.config);
+    // Live Studio settings (saved in the Companion) override the static install-URL config
+    const baseConfig = args.config && typeof args.config === 'object' ? args.config : {};
+    const liveSettings = deps.settingsStore?.isConfigured() ? deps.settingsStore.get() : {};
+    const validation = validateAddonConfig({ ...baseConfig, ...liveSettings });
     if (!validation.valid || !validation.config.bilingualEnabled) {
       return { subtitles: [] };
     }
@@ -94,24 +108,61 @@ export function createSubtitlesHandler(deps: SubtitlesHandlerDeps) {
         identity.canonicalId,
         primaryAsset,
         secondaryAsset,
-        config,
+        { ...config, outputFormat: config.outputFormat === 'srt' ? 'srt' : 'vtt' },
       );
 
       const primaryDesc = findLanguageDescriptor(config.primaryLanguage);
       const secondaryDesc = findLanguageDescriptor(config.secondaryLanguage);
       const primaryLabel = primaryDesc?.label ?? config.primaryLanguage;
       const secondaryLabel = secondaryDesc?.label ?? config.secondaryLanguage;
+      const isoLang = primaryDesc?.iso639_2 ?? 'eng';
+
+      const tracks = [
+        {
+          id: `subtitleme-${delivery.token}`,
+          url: delivery.url,
+          // ISO 639-2 code of primary language per Stremio Subtitles Object spec
+          lang: isoLang,
+          label: delivery.autoSyncApplied
+            ? `SubtitleMe — ${primaryLabel} + ${secondaryLabel} [Auto-Sync]`
+            : `SubtitleMe — ${primaryLabel} + ${secondaryLabel}`,
+        },
+      ];
+
+      // Styled ASS track: Stremio renders .ass natively (colors, italics, vertical position)
+      if (hasCustomStyling(config)) {
+        const assDelivery = deps.fileService.generateCombinedVtt(
+          identity.canonicalId,
+          primaryAsset,
+          secondaryAsset,
+          { ...config, outputFormat: 'ass' },
+        );
+        tracks.unshift({
+          id: `subtitleme-ass-${assDelivery.token}`,
+          url: assDelivery.url,
+          lang: isoLang,
+          label: `SubtitleMe — ${primaryLabel} + ${secondaryLabel} [Estilizada ASS]`,
+        });
+      }
+
+      // When Auto-Sync shifted timestamps, also offer the unshifted original pair as a selectable fallback
+      if (config.autoSync === true && delivery.autoSyncApplied) {
+        const rawDelivery = deps.fileService.generateCombinedVtt(
+          identity.canonicalId,
+          primaryAsset,
+          secondaryAsset,
+          { ...config, autoSync: false },
+        );
+        tracks.push({
+          id: `subtitleme-raw-${rawDelivery.token}`,
+          url: rawDelivery.url,
+          lang: isoLang,
+          label: `SubtitleMe — ${primaryLabel} + ${secondaryLabel} [Original]`,
+        });
+      }
 
       return {
-        subtitles: [
-          {
-            id: `subtitleme-${delivery.token}`,
-            url: delivery.url,
-            // ISO 639-2 code of primary language per Stremio Subtitles Object spec
-            lang: primaryDesc?.iso639_2 ?? 'eng',
-            label: `SubtitleMe — ${primaryLabel} + ${secondaryLabel}`,
-          },
-        ],
+        subtitles: tracks,
         cacheMaxAge,
       };
     } catch {
