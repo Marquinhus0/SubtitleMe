@@ -69,6 +69,7 @@ export function renderConfigurePage(options: ConfigurePageOptions): string {
     body {
       margin: 0;
       min-height: 100vh;
+      overflow-x: hidden;
       background:
         radial-gradient(ellipse 70% 42% at 50% -8%, rgba(16, 185, 129, 0.11), transparent 65%),
         radial-gradient(circle at 90% 15%, rgba(52, 211, 153, 0.05), transparent 40%),
@@ -132,12 +133,13 @@ export function renderConfigurePage(options: ConfigurePageOptions): string {
 
     /* Top Stage: Live Widescreen Monitor + Stremio Track Dock */
     .stage-grid {
-      display: grid; grid-template-columns: 1.35fr 0.65fr;
+      display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
       gap: 14px; margin: 18px 0 14px;
     }
-    @media (max-width: 920px) { .stage-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 920px) { .stage-grid { grid-template-columns: minmax(0, 1fr); } }
 
     .monitor-card, .dock-card, .bento-card {
+      min-width: 0;
       background: var(--panel);
       backdrop-filter: blur(14px);
       border: 1px solid var(--hairline);
@@ -182,7 +184,8 @@ export function renderConfigurePage(options: ConfigurePageOptions): string {
     }
 
     /* Right Stage: Stremio Live Connection & Track Preview */
-    .dock-card { padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; }
+    .dock-card { padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; overflow: hidden; }
+    .dock-card > div { min-width: 0; width: 100%; }
     .dock-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .dock-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
     .track-list-preview {
@@ -191,15 +194,17 @@ export function renderConfigurePage(options: ConfigurePageOptions): string {
     }
     .track-item {
       display: flex; justify-content: space-between; align-items: center; gap: 8px;
-      padding: 7px 10px; color: var(--muted);
+      padding: 7px 10px; color: var(--muted); min-width: 0;
     }
+    .track-item > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .track-item + .track-item { border-top: 1px solid var(--hairline); }
     .track-item.active { background: var(--accent-glow); color: var(--text); }
-    .track-item small { color: var(--accent-bright); font-weight: 600; font-size: 11px; }
+    .track-item small { color: var(--accent-bright); font-weight: 600; font-size: 11px; flex: none; }
 
     .dock-actions { display: flex; gap: 7px; flex-wrap: wrap; }
-    .dock-actions .btn.emerald { flex: 1; min-width: 155px; }
+    .dock-actions .btn.emerald { flex: 1; min-width: 140px; }
     .manifest-line {
+      display: block; width: 100%; max-width: 100%; min-width: 0;
       font: 11px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
       color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       padding: 5px 8px; border-radius: 6px; border: 1px solid var(--hairline); background: rgba(0, 0, 0, 0.28);
@@ -241,7 +246,8 @@ export function renderConfigurePage(options: ConfigurePageOptions): string {
     select:hover, input:hover { border-color: rgba(255, 255, 255, 0.14); }
     select:focus, input:focus { border-color: var(--accent-bright); box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.12); }
 
-    .lang-stack { display: grid; grid-template-columns: 1fr auto 1fr; gap: 7px; align-items: end; }
+    .lang-stack { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 7px; align-items: end; }
+    .lang-stack > div { min-width: 0; }
     .swap-btn {
       width: 34px; height: 33px; border-radius: 7px;
       border: 1px solid var(--hairline); background: rgba(7, 11, 9, 0.7);
@@ -314,7 +320,8 @@ export function renderConfigurePage(options: ConfigurePageOptions): string {
     .note-line strong { color: var(--accent-bright); }
     .note-line a { color: var(--accent-bright); text-decoration: none; font-weight: 600; }
 
-    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+    .row2 > div { min-width: 0; }
     .status-msg { font-size: 11.8px; color: var(--accent-bright); min-height: 1.1em; }
     .status-msg.error { color: var(--danger); }
     .probe-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }

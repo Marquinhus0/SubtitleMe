@@ -2,8 +2,8 @@
 
 **Data:** 2026-11-26  
 **Versão:** `1.0.0-rc.8`  
-**Artefato Standalone:** `dist/release/subtitleme-stremio-v1.0.0-rc.8.tar.gz` (`2.471.330` bytes · `5.628` arquivos)  
-**SHA-256:** `35e625fe1a112daa22186cf808c21c4ed75e6418fa8c57351637ca62c8df48b2`  
+**Artefato Standalone:** `dist/release/subtitleme-stremio-v1.0.0-rc.8.tar.gz` (`2.471.190` bytes · `5.628` arquivos)  
+**SHA-256:** `c1411b7fd8897e6c0b66b91b3863f32136668481a31a0b8c03fd84c794f88450`  
 **Ambiente Validado:** Windows 11 X64 · Node.js `v24.19.0` · Stremio Desktop `5.0.28` (WebView2 + MPV/ASS)
 
 ---
@@ -31,7 +31,7 @@ A release **`1.0.0-rc.8`** consolida o motor bilíngue dinâmico do **SubtitleMe
 - **Seleção Automática `.ASS` vs `.SRT`**: entrega `.ass` (`text/x-ssa`) quando cores, escala de fonte (`28–68px`), caixa translúcida ou posição vertical customizada estão ativas, e `.srt` (`application/x-subrip`) no modo `Branco SRT` para respeitar os controles nativos do Stremio.
 
 ### 2.4. Painel Autoral SubtitleMe Studio (`/configure`)
-- **Identidade Esmeralda Minimalista** ([configure-page.ts](../../apps/stremio-addon/src/configure/configure-page.ts)): fundo obsidiana `#070B09`, destaques menta/esmeralda `#10B981` / `#34D399`, bordas finas (`1px` hairline), monitor widescreen interativo no topo, card de prévia do menu do Stremio e painel Bento em 3 colunas com auto-save instantâneo em `/companion/settings` e diagnóstico de motores em `/companion/opensubtitles/test`.
+- **Identidade Esmeralda Minimalista & Grid Contido** ([configure-page.ts](../../apps/stremio-addon/src/configure/configure-page.ts)): fundo obsidiana `#070B09`, destaques menta/esmeralda `#10B981` / `#34D399`, bordas finas (`1px` hairline), monitor widescreen interativo no topo, card de prévia do menu do Stremio com truncamento elíptico seguro (`minmax(0, ...)` + `min-width: 0` sem overflow horizontal) e painel Bento em 3 colunas com auto-save instantâneo em `/companion/settings` e diagnóstico de motores em `/companion/opensubtitles/test`.
 
 ---
 
