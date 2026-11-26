@@ -10,7 +10,7 @@ const LANGUAGE_OPTION_CODES = STREMIO_SUPPORTED_LANGUAGES.map((item) => item.bcp
 export function createAddonManifest(): StremioManifest {
   return {
     id: 'com.subtitleme.addon',
-    version: '1.0.0-rc.8',
+    version: '1.0.0',
     name: 'SubtitleMe',
     description:
       'Two languages. One experience. Local-first Stremio addon combining dual-language subtitles into a single WebVTT track.',

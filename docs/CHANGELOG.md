@@ -2,6 +2,52 @@
 
 All notable changes to SubtitleMe will be documented in this file.
 
+## [1.0.0] — 2026-11-26
+
+### SubtitleMe Stremio Addon (`@subtitleme/stremio-addon`) — General Availability (GA)
+
+#### Principais Funcionalidades & Motor Multi-Fonte
+- Descoberta automática de legendas combinando **Subtitle Sync** (`subtitlesync.stream`, filtrando automaticamente faixas marcadas como não sincronizadas), **Stremio OpenSubtitles v3** (ilimitado, sem chave de API), **OpenSubtitles REST API v1** (opt-in com chave do usuário, matching por `moviehash` e cache de downloads de 15 minutos) e biblioteca local do Companion.
+- Matching determinístico de filmes (`tt...`) e episódios de séries (`tt...:temporada:episódio`) com pontuação de similaridade de release (`WEB-DL`, `BluRay`, grupo) e bloqueio de mistura entre episódios distintos.
+- Empacotamento standalone independente do monorepo (`dist/release/subtitleme-stremio-v1.0.0.tar.gz`) contendo `package.json` sem `workspace:*`, dependências de produção, launchers (`start-companion.cmd`, `start-companion.ps1`, `start-companion.sh`) e `QUICKSTART.md`.
+
+#### Suporte a 37 Idiomas
+- Catálogo expandido para **37 idiomas** com suporte a códigos BCP-47, ISO 639-2 e aliases nativos do Stremio (`pob`, `por`, `eng`, `spa`, `fre`, `ger`, `ita`, `jpn`, `kor`, `chi`, `rus`, `tur`, `ara`, `dut`, `pol`, `swe`, `dan`, `nor`, `fin`, `gre`, `heb`, `hun`, `rum`, `cze`, `ukr`, `ind`, `vie`, `tha`, `hin`, `per`, `urd`, `bul`, `hrv`, `srp`, `slo`, `slv`, `may`).
+
+#### Pares de Legendas Bilíngues & Roteamento por Idioma
+- Geração de **1 a 5 pares distintos** ranqueados por sobreposição real das falas (`%`) e publicados simultaneamente sob o idioma nativo e o idioma de estudo no menu de legendas do Stremio.
+- Roteamento individual de fonte por idioma (`Auto`, `Sync` ou `OpenSub`) para o idioma de estudo (`learnSrc`) e idioma nativo (`nativeSrc`).
+- Faixa informativa amigável (`dual-notice`) quando um título não possui legendas disponíveis em um dos idiomas selecionados.
+
+#### Sincronização, Ancoragem Bidirecional e Offsets
+- Ancoragem bidirecional que identifica automaticamente qual idioma possui maior aderência ao vídeo (Subtitle Sync / `moviehash` / release) e alinha o idioma complementar por votação multi-escala de corte e regressão linear de drift de FPS (`23.976` ↔ `24` ↔ `25`).
+- Proteção **anti-flicker (`380ms`)** encaixando início e fim das duas falas no mesmo milissegundo.
+- Offsets manuais independentes para cada idioma (`±30.000ms`).
+
+#### Modo Reveal (Aprendizado)
+- Atraso configurável da linha do idioma nativo (`0s`, `0.5s`, `1s`, `1.5s`, `2s`) com reserva de altura por espaço não-quebrável (`\u00A0`), mantendo a linha principal fixa sem deslocamento vertical enquanto a tradução aparece.
+
+#### Geração VTT, ASS e SRT
+- **`.ASS` estilizado (`text/x-ssa`):** cores personalizadas (BGR), escala de fonte (`24–80px`), contorno cinema, caixa translúcida ou traço fino e 4 posições verticais (`bottom`, `raised`, `high`, `top`).
+- **`.SRT` limpo (`application/x-subrip`):** entregue automaticamente no modo `Branco SRT` (sem tags `<font>`) para respeitar os controles nativos de tamanho do player Stremio.
+- **`.VTT` clássico (`text/vtt`):** preservado no modo de compatibilidade padrão com posicionamento `line:XX%`.
+
+#### Companion Local (`SubtitleMe Studio`)
+- Interface web local (`/configure`) em tema escuro esmeralda minimalista com monitor widescreen interativo, diagnóstico ao vivo das fontes (`POST /companion/opensubtitles/test`) e aplicação instantânea em tempo real (`RuntimeSettingsStore`) sem precisar reinstalar o addon.
+- API local autenticada para upload validado de arquivos `.srt`/`.vtt` (`POST /companion/subtitles`) e persistência em disco opt-in (`SUBTITLEME_PERSISTENCE=1`).
+
+#### Segurança e Privacidade
+- Binding exclusivo em `127.0.0.1` (rejeita `0.0.0.0`, `::` e IPs de LAN).
+- Token efêmero de `256` bits (`timingSafeEqual`, TTL de `12h` e revogação via `POST /companion/session/revoke`), cabeçalho CSRF (`X-SubtitleMe-CSRF: 1`), proteção contra DNS rebinding por validação estrita de `Host` e validação de `Origin` loopback.
+- Separação rigorosa de CORS/PNA (`Access-Control-Allow-Private-Network: true` e `*` restritos às rotas do protocolo Stremio; nunca em `/companion/*`).
+- Proteção contra path traversal e symlinks (`O_NOFOLLOW` em POSIX / `lstatSync` + contenção de diretório no Windows), limites de tamanho (`5 MB` por arquivo, `20 MB` cache, `50 MB` disco), tokens opacos de `192` bits no cache isolado por sessão e zero vazamento de credenciais em respostas ou logs.
+
+#### Requisitos e Limitações Conhecidas
+- **Requisitos:** Node.js `>= 22.0.0`. Validado em **Windows 11 X64** (`Node.js v24.19.0`) com **Stremio Desktop `5.0.28`**.
+- **Limitações:** Arquitetura exclusivamente local em `127.0.0.1` (**Android, Android TV, Smart TVs e iOS não suportados**); launcher Linux (`start-companion.sh`) validado até `rc.1` e não reexecutado na `1.0.0`; **macOS não testado**; persistência opt-in grava dados localmente sem criptografia em repouso (`encryptedAtRest: false`); cores/tamanhos `.ASS` exigem **Configurações › Reprodutor › Estilizar legendas ASS** ativado no Stremio Desktop.
+
+---
+
 ## [1.0.0-rc] — 2026-11-23
 
 ### Sprint 08 — Release Candidate & Production Packaging

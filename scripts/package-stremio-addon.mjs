@@ -85,8 +85,11 @@ function main() {
     );
     writeFileSync(resolve(stagingDir, 'package.json'), standalonePkgJson, 'utf-8');
 
-    // 2. Copy built bundle and cross-platform launchers
+    // 2. Copy built bundle, standalone quickstart documentation, and cross-platform launchers
     cpSync(distEntry, resolve(stagingDir, 'dist/index.mjs'));
+    const quickstartSrc = resolve(addonDir, 'QUICKSTART.md');
+    assert.ok(existsSync(quickstartSrc), `Missing standalone documentation: ${quickstartSrc}`);
+    cpSync(quickstartSrc, resolve(stagingDir, 'QUICKSTART.md'));
     for (const launcher of ['start-companion.sh', 'start-companion.ps1', 'start-companion.cmd']) {
       const src = resolve(addonDir, 'bin', launcher);
       assert.ok(existsSync(src), `Missing launcher: ${src}`);
@@ -138,12 +141,15 @@ function main() {
     const sizeBytes = statSync(archivePath).size;
 
     const checksumPath = resolve(releaseDir, `subtitleme-stremio-v${version}.sha256`);
+    const releaseLabel = version.includes('-rc.')
+      ? 'SubtitleMe Stremio Addon Release Candidate Integrity'
+      : 'SubtitleMe Stremio Addon GA Release Integrity';
     writeFileSync(
       checksumPath,
       [
         `${sha256}  ${artifactName}`,
         '',
-        `# SubtitleMe Stremio Addon Release Candidate Integrity`,
+        `# ${releaseLabel}`,
         `# Artifact: ${artifactName}`,
         `# Version: ${version}`,
         `# Size: ${sizeBytes} bytes`,
