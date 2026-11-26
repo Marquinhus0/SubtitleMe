@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="SubtitleMe Icon">
+  <defs>
+    <linearGradient id="sm-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#11151E" />
+      <stop offset="100%" stop-color="#07090D" />
+    </linearGradient>
+    <linearGradient id="sm-emerald" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="sm-mint" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6EE7B7" />
+      <stop offset="100%" stop-color="#34D399" />
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#sm-bg)" stroke="#1E2633" stroke-width="8" />
+  <!-- Top subtitle track (Primary language - Emerald) -->
+  <rect x="108" y="154" width="248" height="52" rx="26" fill="url(#sm-emerald)" />
+  <rect x="372" y="154" width="32" height="52" rx="16" fill="#10B981" opacity="0.45" />
+  <!-- Bottom subtitle track (Secondary language - Mint, offset to form rhythmic dual-track S) -->
+  <rect x="108" y="232" width="44" height="48" rx="24" fill="#34D399" opacity="0.35" />
+  <rect x="168" y="232" width="236" height="48" rx="24" fill="url(#sm-mint)" />
+  <!-- Subtle sync bar below -->
+  <rect x="148" y="314" width="216" height="28" rx="14" fill="#F9FAFB" opacity="0.9" />
+</svg>

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 160" width="640" height="160" role="img" aria-label="SubtitleMe — Two languages. One experience.">
+  <defs>
+    <linearGradient id="sm-p-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#11151E" />
+      <stop offset="100%" stop-color="#07090D" />
+    </linearGradient>
+    <linearGradient id="sm-p-emerald" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="sm-p-mint" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6EE7B7" />
+      <stop offset="100%" stop-color="#34D399" />
+    </linearGradient>
+  </defs>
+  <!-- Icon mark -->
+  <g transform="translate(16, 16)">
+    <rect x="0" y="0" width="128" height="128" rx="30" fill="url(#sm-p-bg)" stroke="#1E2633" stroke-width="3" />
+    <rect x="24" y="36" width="66" height="14" rx="7" fill="url(#sm-p-emerald)" />
+    <rect x="94" y="36" width="10" height="14" rx="5" fill="#10B981" opacity="0.45" />
+    <rect x="24" y="57" width="12" height="13" rx="6.5" fill="#34D399" opacity="0.35" />
+    <rect x="40" y="57" width="64" height="13" rx="6.5" fill="url(#sm-p-mint)" />
+    <rect x="36" y="79" width="56" height="8" rx="4" fill="#F9FAFB" opacity="0.9" />
+  </g>
+  <!-- Wordmark -->
+  <text x="172" y="88" font-family="Inter, 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-size="60" font-weight="700" letter-spacing="-1.5" fill="#F9FAFB">
+    Subtitle<tspan fill="#34D399">Me</tspan>
+  </text>
+  <text x="174" y="122" font-family="Inter, 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-size="20" font-weight="500" letter-spacing="0.2" fill="#9CA3AF">
+    Two languages. One experience.
+  </text>
+</svg>

@@ -1,61 +1,126 @@
-# Installation Guide — SubtitleMe v1.0.0
+# Guia de Instalação — SubtitleMe (`v1.0.0`)
 
-SubtitleMe is distributed as a Google Chrome Manifest V3 extension.
-
-> **Important:** A `.zip` extension package **cannot** be installed by double-clicking it. For manual/local installation, you must extract the archive first and load the extracted folder in Chrome Developer Mode. The `.zip` file itself is formatted for direct upload to the Chrome Web Store Developer Dashboard.
+Este guia cobre a instalação do **SubtitleMe Stremio Addon (`v1.0.0`)** a partir do pacote standalone `subtitleme-stremio-v1.0.0.tar.gz` (com instruções separadas por sistema operacional) e preserva as instruções da **Extensão Chrome (`v1.0.0 RC`)** ao final.
 
 ---
 
-## 1. Minimum Requirements
+## 1. Windows (Plataforma Principal Validada)
 
-- **Browser**: Google Chrome (Manifest V3 compatible; tested on Chromium `159.0.8154.6`)
-- **Account / Internet**: Not required (100% local, zero backend)
+Ambiente validado na `v1.0.0`: **Windows 11 X64**, **Node.js `v24.19.0`** (requisito mínimo: `>= 22.0.0`) e **Stremio Desktop `5.0.28`**.
 
-## 2. Obtaining the Official Release Package
+### 1.1 Requisitos
+- **Node.js `>= 22.0.0`** instalado e disponível no `PATH` (`node --version`).
+- **Stremio Desktop** instalado no mesmo computador.
+- O pacote standalone `subtitleme-stremio-v1.0.0.tar.gz` já inclui todas as dependências de produção (`node_modules/`), não exigindo `npm install` nem Docker.
 
-- Download `subtitleme-chrome-v1.0.0.zip` and `SHA256SUMS.txt` from the official release artifacts (or build locally via `pnpm build && pnpm package:release` into `dist/release/`).
-- Optional integrity check (Linux/macOS):
-  ```bash
-  sha256sum -c SHA256SUMS.txt
-  ```
+### 1.2 Extração do pacote (e verificação opcional de integridade)
+No Prompt de Comando ou PowerShell:
 
-## 3. Manual Installation (Developer Mode — Load Unpacked)
+```powershell
+# Opcional: verificar integridade SHA-256
+Get-FileHash -Algorithm SHA256 .\subtitleme-stremio-v1.0.0.tar.gz
+# Esperado: 7F298F2B792615EC8AE476FDF7D8E0AC35FA4AE494D25D945AD74313913261FD
 
-1. **Extract the ZIP archive** into a permanent folder on your computer (for example, `~/Extensions/subtitleme-v1.0.0/`). Confirm that `manifest.json` is located directly inside that folder.
-2. Open Google Chrome and navigate to `chrome://extensions`.
-3. Enable **Developer mode** using the toggle in the top-right corner.
-4. Click **Load unpacked**.
-5. Select the **extracted folder** containing `manifest.json` (do **not** select the `.zip` file or the repository root).
-6. Confirm that **SubtitleMe v1.0.0** appears in your extensions list with no manifest errors.
-7. *(Optional)* Click the puzzle-piece icon in the Chrome toolbar and pin **SubtitleMe** for one-click access.
+mkdir subtitleme-stremio
+tar -xzf subtitleme-stremio-v1.0.0.tar.gz -C subtitleme-stremio
+cd subtitleme-stremio
+```
 
-## 4. Chrome Web Store Submission Package
+### 1.3 Inicialização via CMD (Recomendado)
+Não exige alteração de `ExecutionPolicy` do PowerShell:
 
-- The file `dist/release/subtitleme-chrome-v1.0.0.zip` is ready for direct upload to the Chrome Web Store Developer Dashboard once reviewed and approved for publication.
+```cmd
+.\bin\start-companion.cmd
+```
 
-## 5. Getting Started
+Para ativar a persistência local opcional (mantém configurações e arquivos salvos em `%USERPROFILE%\.subtitleme\stremio-companion` entre reinicializações):
 
-1. **Open the Popup**: Click the SubtitleMe icon in the Chrome toolbar on any page with an HTML5 `<video>` player.
-2. **Access Full Settings**: Click **Settings** in the popup header or **Open Full Settings** at the bottom.
-3. **Import a Local Subtitle (`.srt` or `.vtt`)**:
-   - Open **Settings → Local Files** (or click **Import File** in the Popup).
-   - Drag and drop (or browse for) a `.srt` or `.vtt` file (max 5 MB).
-   - Review the **Import Preview** (cue count, duration, sample lines, and any encoding warnings).
-   - Select the subtitle language and click **Confirm & Save Locally**.
-4. **Configure Two Languages**:
-   - Choose your **Primary** and **Secondary** languages or imported files in the Popup or **Settings → Languages**.
-   - Adjust font size, colors, position, and independent millisecond offsets in **Appearance** and **Synchronization**.
+```cmd
+set SUBTITLEME_PERSISTENCE=1
+.\bin\start-companion.cmd
+```
 
-## 6. Troubleshooting Common Issues
+Para usar uma porta alternativa caso a `7000` esteja ocupada:
 
-| Symptom | Cause & Resolution |
-| --- | --- |
-| *"Restricted browser pages cannot be inspected"* | Chrome blocks extensions on `chrome://`, `about:`, and Chrome Web Store pages. Switch to a regular webpage with an HTML5 video. |
-| *"No native text tracks exposed"* | Many players do not expose standard HTML5 `<track>` elements. Import your own `.srt` or `.vtt` files locally via **Local Files**. |
-| Subtitles don't appear in fullscreen | Enter fullscreen using the player's wrapper/container fullscreen button rather than bare `<video>` fullscreen, as browsers disallow DOM overlays inside a bare `<video>` element. |
-| Accented characters look garbled | SubtitleMe automatically falls back to Windows-1252 when UTF-8 fails and shows a warning. Convert exotic encodings to UTF-8 if needed. |
+```cmd
+set PORT=7001
+.\bin\start-companion.cmd
+```
 
-## 7. Updating or Removing SubtitleMe
+### 1.4 Inicialização via PowerShell (Alternativa)
+Se a política padrão do Windows (`ExecutionPolicy=Restricted`) bloquear scripts `.ps1`, execute com bypass limitado apenas ao processo atual (sem alterar a política global do sistema):
 
-- **Update (Unpacked)**: Extract the new version over the same folder and click the **Reload** icon on the SubtitleMe card in `chrome://extensions`. Your `chrome.storage.local` settings and IndexedDB subtitle library are preserved.
-- **Remove**: Open `chrome://extensions`, locate **SubtitleMe**, and click **Remove**. To delete stored subtitle data beforehand, use **Settings → Privacy → Clear All Local Data**.
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\bin\start-companion.ps1
+```
+
+Ou execute diretamente com Node.js:
+
+```powershell
+node .\dist\index.mjs
+```
+
+### 1.5 Configuração do Companion e instalação no Stremio Desktop
+1. Com o terminal aberto e o Companion ativo, acesse no navegador: **`http://127.0.0.1:7000/configure`**
+2. Selecione seus idiomas (ex.: **Inglês** + **Português (Brasil)**) e ajuste as opções desejadas no **SubtitleMe Studio**.
+3. Clique em **Instalar no Stremio**, ou copie **`http://127.0.0.1:7000/manifest.json`** e cole em **Stremio Desktop → Complementos → + Adicionar Complemento**.
+4. Instale o addon apenas **uma vez** — alterações posteriores em `/configure` são aplicadas ao vivo sem precisar reinstalar.
+
+### 1.6 Verificação de funcionamento
+- `http://127.0.0.1:7000/companion/health` deve retornar `{"ok":true,"service":"subtitleme-local-companion","host":"127.0.0.1","localOnly":true,...}`.
+- `http://127.0.0.1:7000/manifest.json` deve retornar o manifesto JSON com `"id":"com.subtitleme.addon"` e `"version":"1.0.0"`.
+- No Stremio Desktop, reproduza um filme ou episódio e confirme a presença de faixas `Dual ...` no menu de legendas.
+
+### 1.7 Encerramento
+Na janela do terminal onde o Companion está rodando, pressione **`Ctrl + C`**. O servidor executa encerramento gracioso (`SIGINT`), libera a porta `127.0.0.1:7000` e limpa o cache temporário em memória.
+
+---
+
+## 2. Linux (`Partially Tested`)
+
+> **Nota de compatibilidade:** O launcher `./bin/start-companion.sh` e a execução nativa em Linux foram validados em versões RC anteriores (`1.0.0-rc.1` a `1.0.0-rc.3` em Linux X64 com Node.js `v22.23.5`), porém **não foram reexecutados na `v1.0.0` final** e o **Stremio Desktop no Linux não foi testado visualmente**.
+
+### 2.1 Requisitos
+- **Node.js `>= 22.0.0`** (`node --version`).
+- **Stremio Desktop** no mesmo computador.
+
+### 2.2 Extração, permissões e inicialização
+```bash
+mkdir -p subtitleme-stremio
+tar -xzf subtitleme-stremio-v1.0.0.tar.gz -C subtitleme-stremio
+cd subtitleme-stremio
+chmod +x ./bin/start-companion.sh
+./bin/start-companion.sh
+```
+
+Com persistência local opcional (`~/.subtitleme/stremio-companion`, diretório `0700` e arquivos `0600`):
+
+```bash
+SUBTITLEME_PERSISTENCE=1 PORT=7000 ./bin/start-companion.sh
+```
+
+### 2.3 Configuração, verificação e encerramento
+- Abra **`http://127.0.0.1:7000/configure`** no navegador.
+- Verifique `curl http://127.0.0.1:7000/companion/health` e `curl http://127.0.0.1:7000/manifest.json`.
+- Instale `http://127.0.0.1:7000/manifest.json` no Stremio Desktop (**Complementos → + Adicionar Complemento**).
+- Para encerrar graciosamente (`SIGINT`/`SIGTERM`), pressione **`Ctrl + C`** no terminal.
+
+---
+
+## 3. macOS (`Não Validado`)
+
+**O macOS não foi validado nem testado em nenhuma etapa da release `v1.0.0`.**
+
+Por política de transparência do projeto, não fornecemos instruções de instalação para macOS como se houvesse compatibilidade confirmada. O pacote inclui um script POSIX (`./bin/start-companion.sh`), mas o suporte oficial a macOS permanece **não declarado (`Not Tested`)**.
+
+---
+
+## 4. Extensão Chrome SubtitleMe (`v1.0.0 RC` — Produto Independente)
+
+A extensão Chrome opera de forma totalmente independente do Stremio Addon (não compartilha arquivos do IndexedDB com o Stremio):
+
+1. Extraia `dist/release/subtitleme-chrome-v1.0.0.zip` (ou execute `pnpm install && pnpm build` no monorepo para gerar `apps/chrome-extension/dist/`).
+2. Abra `chrome://extensions` no Google Chrome.
+3. Ative o **Modo do desenvolvedor** (canto superior direito).
+4. Clique em **Carregar sem compactação** e selecione a pasta extraída (ou `apps/chrome-extension/dist/`).
+5. Fixe o ícone do **SubtitleMe** na barra do navegador e abra qualquer página com player HTML5 compatível.

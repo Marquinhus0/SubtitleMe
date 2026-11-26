@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Proposta C — Interlocking Ribbon S">
+  <defs>
+    <linearGradient id="pc-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#111815" />
+      <stop offset="100%" stop-color="#070B09" />
+    </linearGradient>
+    <linearGradient id="pc-emerald" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="pc-mint" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6EE7B7" />
+      <stop offset="100%" stop-color="#34D399" />
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#pc-bg)" stroke="#1E2B25" stroke-width="8" />
+  <!-- Upper diagonal ribbon (Emerald) -->
+  <path d="M278 106 L376 106 L236 254 L138 254 Z" fill="url(#pc-emerald)" />
+  <path d="M236 106 L258 106 L154 216 L132 216 Z" fill="#10B981" opacity="0.45" />
+  <!-- Lower diagonal ribbon (Mint) -->
+  <path d="M276 258 L374 258 L234 406 L136 406 Z" fill="url(#pc-mint)" />
+  <path d="M358 296 L380 296 L276 406 L254 406 Z" fill="#34D399" opacity="0.45" />
+</svg>

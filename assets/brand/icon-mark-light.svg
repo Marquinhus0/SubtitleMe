@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="SubtitleMe Icon — Light Surface">
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="8" />
+  <rect x="104" y="152" width="248" height="54" rx="27" fill="#059669" />
+  <rect x="368" y="152" width="40" height="54" rx="20" fill="#10B981" opacity="0.45" />
+  <rect x="104" y="232" width="48" height="50" rx="25" fill="#059669" opacity="0.3" />
+  <rect x="168" y="232" width="240" height="50" rx="25" fill="#10B981" />
+  <rect x="148" y="316" width="216" height="28" rx="14" fill="#0F172A" opacity="0.88" />
+</svg>

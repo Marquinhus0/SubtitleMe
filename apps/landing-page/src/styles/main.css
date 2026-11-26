@@ -1,0 +1,273 @@
+@import "tailwindcss";
+@import "../../../../assets/brand/design-tokens.css";
+
+:root {
+  /* Semantic aliases mapped directly to official Sprint 18.2.1 brand tokens */
+  --color-bg-canvas: var(--sm-bg-canvas);
+  --color-bg-surface: var(--sm-bg-surface);
+  --color-bg-elevated: var(--sm-bg-elevated);
+  --color-bg-hover: var(--sm-bg-hover);
+  --color-border-subtle: var(--sm-border-subtle);
+  --color-border-strong: var(--sm-border-strong);
+
+  --color-accent-emerald: var(--sm-accent-emerald);
+  --color-accent-emerald-hover: var(--sm-accent-emerald-dark);
+  --color-accent-mint: var(--sm-accent-mint);
+  --color-accent-mint-soft: var(--sm-accent-mint-soft);
+  --color-accent-tint: var(--sm-accent-tint);
+  --color-accent-border: var(--sm-accent-border);
+
+  --color-text-primary: var(--sm-text-primary);
+  --color-text-secondary: var(--sm-text-secondary);
+  --color-text-muted: var(--sm-text-muted);
+  --color-text-on-accent: var(--sm-text-on-accent);
+
+  --color-status-warning: #f59e0b;
+  --color-status-warning-bg: rgba(245, 158, 11, 0.12);
+  --color-status-warning-border: rgba(245, 158, 11, 0.34);
+
+  --container-max: 1120px;
+  --transition-fast: var(--sm-transition-fast);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    background-color: var(--sm-bg-canvas);
+    color: var(--sm-text-primary);
+    font-family: var(--font-sans);
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--sm-bg-canvas);
+    color: var(--sm-text-primary);
+    line-height: 1.65;
+    overflow-x: hidden;
+  }
+
+  a {
+    color: var(--sm-accent-mint);
+    text-decoration: none;
+    transition: color var(--sm-transition-fast);
+  }
+
+  a:hover {
+    color: var(--sm-accent-mint-soft);
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--sm-accent-mint);
+    outline-offset: 3px;
+  }
+}
+
+.skip-link {
+  position: absolute;
+  top: -48px;
+  left: 16px;
+  background: var(--sm-accent-emerald);
+  color: var(--sm-text-on-accent);
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  z-index: 100;
+  transition: top var(--sm-transition-fast);
+}
+
+.skip-link:focus {
+  top: 16px;
+}
+
+.container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.section {
+  padding: 88px 0;
+  border-top: 1px solid var(--sm-border-subtle);
+}
+
+.section--hero {
+  border-top: none;
+  padding-top: 72px;
+  padding-bottom: 88px;
+  background: radial-gradient(
+    ellipse 70% 45% at 50% 0%,
+    rgba(16, 185, 129, 0.12) 0%,
+    rgba(7, 11, 9, 0) 72%
+  );
+}
+
+.section-header {
+  max-width: 680px;
+  margin-bottom: 48px;
+}
+
+.section-kicker {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sm-accent-mint);
+  margin-bottom: 10px;
+}
+
+.section-title {
+  margin: 0 0 14px;
+  font-size: clamp(1.625rem, 3vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.025em;
+  color: var(--sm-text-primary);
+}
+
+.section-lead {
+  margin: 0;
+  font-size: 1.0625rem;
+  color: var(--sm-text-secondary);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition: background-color var(--sm-transition-fast), border-color var(--sm-transition-fast),
+    color var(--sm-transition-fast);
+}
+
+.btn--primary {
+  background-color: var(--sm-accent-emerald);
+  color: var(--sm-text-on-accent);
+}
+
+.btn--primary:hover {
+  background-color: var(--sm-accent-mint);
+  color: var(--sm-text-on-accent);
+}
+
+.btn--secondary {
+  background-color: var(--sm-bg-elevated);
+  border-color: var(--sm-border-strong);
+  color: var(--sm-text-primary);
+}
+
+.btn--secondary:hover {
+  border-color: var(--sm-accent-mint);
+  color: var(--sm-text-primary);
+  background-color: var(--sm-bg-hover);
+}
+
+.btn--sm {
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+}
+
+/* Cards */
+.card {
+  background-color: var(--sm-bg-surface);
+  border: 1px solid var(--sm-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 26px;
+  transition: border-color var(--sm-transition-fast);
+}
+
+.card:hover {
+  border-color: var(--sm-border-strong);
+}
+
+/* Status badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.badge--valid {
+  background: var(--sm-accent-tint);
+  color: var(--sm-accent-mint);
+  border-color: var(--sm-accent-border);
+}
+
+.badge--partial {
+  background: var(--color-status-warning-bg);
+  color: #fbbf24;
+  border-color: var(--color-status-warning-border);
+}
+
+.badge--unsupported {
+  background: rgba(143, 163, 153, 0.14);
+  color: var(--sm-text-secondary);
+  border-color: rgba(143, 163, 153, 0.3);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.code-block {
+  position: relative;
+  background-color: var(--sm-bg-canvas);
+  border: 1px solid var(--sm-border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  overflow-x: auto;
+}
+
+.code-block pre {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--sm-text-primary);
+}
+
+@media (max-width: 768px) {
+  .section {
+    padding: 64px 0;
+  }
+
+  .section--hero {
+    padding-top: 48px;
+    padding-bottom: 64px;
+  }
+
+  .container {
+    padding: 0 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
