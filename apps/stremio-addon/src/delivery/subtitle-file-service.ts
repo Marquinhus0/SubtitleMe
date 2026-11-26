@@ -5,10 +5,11 @@ import { parseSubtitle } from '@subtitleme/subtitle-parser';
 import type {
   SecondarySubtitleStyle,
   StremioAddonConfig,
+  SubtitleBackgroundStyle,
   VerticalSubtitlePosition,
 } from '../config/addon-config';
 import type { RawSubtitleAsset } from '../sources/subtitle-source.interface';
-import { alignSecondaryCuesToPrimary } from './auto-sync';
+import { alignCuesToAnchor, computeCueSyncPercent } from './auto-sync';
 import { GeneratedSubtitleCache } from './generated-subtitle-cache';
 
 export const MAX_SOURCE_SUBTITLE_BYTES = 5 * 1024 * 1024; // 5 MB safety limit
@@ -22,6 +23,7 @@ export interface GeneratedSubtitleDelivery {
   sessionScope: string;
   autoSyncApplied?: boolean;
   autoSyncOffsetMs?: number;
+  syncPercent?: number;
 }
 
 export interface SubtitleFileServiceOptions {
@@ -69,6 +71,93 @@ function decorateCueLines(
   });
 }
 
+function applyOffsetToCues(cues: readonly SubtitleCue[], offsetMs: number): SubtitleCue[] {
+  if (offsetMs === 0) return [...cues];
+  const out: SubtitleCue[] = [];
+  for (const cue of cues) {
+    const start = Math.max(0, cue.start + offsetMs);
+    const end = cue.end + offsetMs;
+    if (end > start) {
+      out.push({ ...cue, start, end });
+    }
+  }
+  return out;
+}
+
+/**
+ * Implements DualSubs's `reveal` learner delay: when a secondary (native) cue overlaps spoken
+ * primary (learning) dialogue, splits the secondary cue into `[start, start + delay]` with
+ * non-breaking space `\u00A0` placeholder lines (locking vertical position so the top line
+ * never jumps!) followed by `[start + delay, end]` with the revealed translation.
+ */
+export function splitSecondaryCuesForReveal(
+  primaryCues: readonly SubtitleCue[],
+  styledSecondaryCues: readonly SubtitleCue[],
+  revealMs: number,
+  secondaryStyle: SecondarySubtitleStyle,
+): SubtitleCue[] {
+  if (revealMs <= 0 || styledSecondaryCues.length === 0) {
+    return [...styledSecondaryCues];
+  }
+
+  const useItalicPlaceholder =
+    secondaryStyle === 'italic' || secondaryStyle === 'italic-brackets';
+  const singlePlaceholderLine = useItalicPlaceholder ? '<i>\u00A0</i>' : '\u00A0';
+
+  const result: SubtitleCue[] = [];
+  let j = 0;
+
+  for (const sCue of styledSecondaryCues) {
+    while (j < primaryCues.length && (primaryCues[j]?.end ?? 0) <= sCue.start) {
+      j += 1;
+    }
+
+    let overlapsPrimary = false;
+    for (let k = j; k < primaryCues.length; k += 1) {
+      const pCue = primaryCues[k];
+      if (!pCue || pCue.start >= sCue.end) break;
+      if (Math.min(pCue.end, sCue.end) - Math.max(pCue.start, sCue.start) >= 100) {
+        overlapsPrimary = true;
+        break;
+      }
+    }
+
+    if (!overlapsPrimary) {
+      result.push(sCue);
+      continue;
+    }
+
+    const duration = sCue.end - sCue.start;
+    const effectiveDelay = Math.min(revealMs, Math.floor(duration * 0.6));
+    const revealAt = sCue.start + effectiveDelay;
+
+    if (effectiveDelay < 150 || sCue.end - revealAt < 220) {
+      result.push(sCue);
+      continue;
+    }
+
+    const lineCount = Math.max(1, sCue.text.split('\n').length);
+    const placeholderText = Array.from({ length: lineCount }, () => singlePlaceholderLine).join(
+      '\n',
+    );
+
+    result.push({
+      id: `${sCue.id}-hide`,
+      start: sCue.start,
+      end: revealAt,
+      text: placeholderText,
+    });
+    result.push({
+      id: `${sCue.id}-show`,
+      start: revealAt,
+      end: sCue.end,
+      text: sCue.text,
+    });
+  }
+
+  return result;
+}
+
 function applyVttVerticalPosition(vttContent: string, pos: VerticalSubtitlePosition | undefined): string {
   const suffix = pos ? VTT_POSITION_SETTING[pos] : '';
   if (!suffix) return vttContent;
@@ -103,8 +192,22 @@ function vttTextToAss(text: string): string {
 }
 
 /** Converts the merged WebVTT (with <i>/<font> tags) into an Advanced SubStation Alpha track. */
-export function convertVttToAss(vtt: string, position: VerticalSubtitlePosition): string {
+export function convertVttToAss(
+  vtt: string,
+  position: VerticalSubtitlePosition,
+  fontSize: number = 46,
+  backgroundStyle: SubtitleBackgroundStyle = 'outline',
+): string {
   const pos = ASS_POSITION[position];
+  const clampedFont = Math.max(24, Math.min(80, Math.round(fontSize)));
+  // BorderStyle=3 renders an opaque/semi-transparent box; BorderStyle=1 renders outline + shadow
+  const styleLine =
+    backgroundStyle === 'box'
+      ? `Style: Default,Arial,${clampedFont},&H00FFFFFF,&H000000FF,&H550B0D14,&H550B0D14,0,0,0,0,100,100,0,0,3,10,0,${pos.align},40,40,${pos.marginV},1`
+      : backgroundStyle === 'clean'
+        ? `Style: Default,Arial,${clampedFont},&H00FFFFFF,&H000000FF,&H00000000,&H90000000,0,0,0,0,100,100,0,0,1,1.4,0.5,${pos.align},40,40,${pos.marginV},1`
+        : `Style: Default,Arial,${clampedFont},&H00FFFFFF,&H000000FF,&H00000000,&H75000000,0,0,0,0,100,100,0,0,1,2.6,1.2,${pos.align},40,40,${pos.marginV},1`;
+
   const header = [
     '[Script Info]',
     'ScriptType: v4.00+',
@@ -115,7 +218,7 @@ export function convertVttToAss(vtt: string, position: VerticalSubtitlePosition)
     '',
     '[V4+ Styles]',
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
-    `Style: Default,Arial,44,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2.4,1,${pos.align},40,40,${pos.marginV},1`,
+    styleLine,
     '',
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
@@ -171,8 +274,11 @@ function buildContentFingerprint(
       secondaryColor: config.secondaryColor ?? 'none',
       secondaryStyle: config.secondaryStyle ?? 'none',
       verticalPosition: config.verticalPosition ?? 'bottom',
+      fontSize: config.fontSize ?? 46,
+      backgroundStyle: config.backgroundStyle ?? 'outline',
       autoSync: config.autoSync === true,
       outputFormat: config.outputFormat ?? 'vtt',
+      revealMs: config.revealMs ?? 0,
     }),
   );
   return hash.digest('hex');
@@ -225,12 +331,61 @@ export class SubtitleFileService {
     return this.cache.invalidateBySession(sessionScope);
   }
 
+  public generateNoticeSrt(
+    noticeKey: string,
+    message: string,
+    sessionScope: string = this.defaultSessionScope,
+  ): GeneratedSubtitleDelivery {
+    const fingerprint = `notice:${createHash('sha256').update(`${noticeKey}:${message}`).digest('hex')}`;
+    const cached = this.cache.getByFingerprint(sessionScope, fingerprint);
+    if (cached) {
+      return {
+        token: cached.token,
+        url: `${this.baseUrl}/generated/${cached.token}.srt`,
+        cueCount: cached.cueCount,
+        fromCache: true,
+        sessionScope,
+      };
+    }
+
+    const safeText = message.replace(/\r/g, '').trim();
+    const vttContent = [
+      'WEBVTT',
+      '',
+      '1',
+      '00:00:01.000 --> 00:00:13.000',
+      safeText,
+      '',
+      '2',
+      '00:01:01.000 --> 00:01:13.000',
+      safeText,
+      '',
+    ].join('\n');
+
+    const token = generateOpaqueAccessToken();
+    this.cache.set(token, vttContent, {
+      sessionScope,
+      fingerprint,
+      sourceIds: [],
+      cueCount: 2,
+    });
+
+    return {
+      token,
+      url: `${this.baseUrl}/generated/${token}.srt`,
+      cueCount: 2,
+      fromCache: false,
+      sessionScope,
+    };
+  }
+
   public generateCombinedVtt(
     videoId: string,
     primaryAsset: RawSubtitleAsset,
     secondaryAsset: RawSubtitleAsset,
     config: StremioAddonConfig,
     sessionScope: string = this.defaultSessionScope,
+    syncAnchor: 'primary' | 'secondary' = 'primary',
   ): GeneratedSubtitleDelivery {
     if (
       Buffer.byteLength(primaryAsset.content, 'utf-8') > this.maxSourceBytes ||
@@ -239,7 +394,7 @@ export class SubtitleFileService {
       throw new Error('Source subtitle exceeds maximum permitted byte size.');
     }
 
-    const fingerprint = buildContentFingerprint(videoId, primaryAsset, secondaryAsset, config);
+    const fingerprint = `${buildContentFingerprint(videoId, primaryAsset, secondaryAsset, config)}:${syncAnchor}`;
 
     if (config.outputFormat === 'ass') {
       const cachedAss = this.cache.getByFingerprint(sessionScope, fingerprint);
@@ -250,6 +405,7 @@ export class SubtitleFileService {
           cueCount: cachedAss.cueCount,
           fromCache: true,
           sessionScope,
+          ...(cachedAss.syncPercent !== undefined ? { syncPercent: cachedAss.syncPercent } : {}),
         };
       }
       const base = this.generateCombinedVtt(
@@ -258,15 +414,22 @@ export class SubtitleFileService {
         secondaryAsset,
         { ...config, outputFormat: 'vtt' },
         sessionScope,
+        syncAnchor,
       );
       const baseVtt = this.cache.get(base.token, sessionScope)?.vttContent ?? '';
-      const assContent = convertVttToAss(baseVtt, config.verticalPosition ?? 'bottom');
+      const assContent = convertVttToAss(
+        baseVtt,
+        config.verticalPosition ?? 'bottom',
+        config.fontSize ?? 46,
+        config.backgroundStyle ?? 'outline',
+      );
       const assToken = generateOpaqueAccessToken();
       this.cache.set(assToken, assContent, {
         sessionScope,
         fingerprint,
         sourceIds: [primaryAsset.sourceId, secondaryAsset.sourceId],
         cueCount: base.cueCount,
+        ...(base.syncPercent !== undefined ? { syncPercent: base.syncPercent } : {}),
       });
       return {
         token: assToken,
@@ -274,6 +437,9 @@ export class SubtitleFileService {
         cueCount: base.cueCount,
         fromCache: false,
         sessionScope,
+        ...(base.autoSyncApplied !== undefined ? { autoSyncApplied: base.autoSyncApplied } : {}),
+        ...(base.autoSyncOffsetMs !== undefined ? { autoSyncOffsetMs: base.autoSyncOffsetMs } : {}),
+        ...(base.syncPercent !== undefined ? { syncPercent: base.syncPercent } : {}),
       };
     }
 
@@ -286,6 +452,7 @@ export class SubtitleFileService {
         cueCount: cached.cueCount,
         fromCache: true,
         sessionScope,
+        ...(cached.syncPercent !== undefined ? { syncPercent: cached.syncPercent } : {}),
       };
     }
 
@@ -299,31 +466,64 @@ export class SubtitleFileService {
       throw new Error('Failed to parse secondary subtitle track.');
     }
 
+    let primaryBaseCues = parsedPrimary.cues;
     let secondaryBaseCues = parsedSecondary.cues;
     let autoSyncApplied = false;
     let autoSyncOffsetMs = 0;
+    let syncPercent: number;
 
     if (config.autoSync === true) {
-      const aligned = alignSecondaryCuesToPrimary(parsedPrimary.cues, parsedSecondary.cues);
-      secondaryBaseCues = aligned.cues;
-      autoSyncApplied = aligned.applied;
-      autoSyncOffsetMs = aligned.offsetMs;
+      // Align whichever track is NOT locked to the video onto the stronger video-synced anchor!
+      if (syncAnchor === 'secondary') {
+        const aligned = alignCuesToAnchor(parsedSecondary.cues, parsedPrimary.cues);
+        primaryBaseCues = aligned.cues;
+        autoSyncApplied = aligned.applied;
+        autoSyncOffsetMs = aligned.offsetMs;
+        syncPercent = aligned.syncPercent;
+      } else {
+        const aligned = alignCuesToAnchor(parsedPrimary.cues, parsedSecondary.cues);
+        secondaryBaseCues = aligned.cues;
+        autoSyncApplied = aligned.applied;
+        autoSyncOffsetMs = aligned.offsetMs;
+        syncPercent = aligned.syncPercent;
+      }
+    } else {
+      syncPercent = computeCueSyncPercent(parsedPrimary.cues, parsedSecondary.cues);
     }
 
-    const styledPrimary = decorateCueLines(parsedPrimary.cues, config.primaryColor, 'none');
+    const styledPrimary = decorateCueLines(primaryBaseCues, config.primaryColor, 'none');
     const styledSecondary = decorateCueLines(
       secondaryBaseCues,
       config.secondaryColor,
       config.secondaryStyle ?? 'none',
     );
 
+    const revealMs = config.revealMs ?? 0;
+    let finalPrimaryCues = styledPrimary;
+    let finalSecondaryCues = styledSecondary;
+    let trackPrimaryOffset = config.primaryOffsetMs;
+    let trackSecondaryOffset = config.secondaryOffsetMs;
+
+    if (revealMs > 0) {
+      finalPrimaryCues = applyOffsetToCues(styledPrimary, config.primaryOffsetMs);
+      const shiftedSec = applyOffsetToCues(styledSecondary, config.secondaryOffsetMs);
+      finalSecondaryCues = splitSecondaryCuesForReveal(
+        finalPrimaryCues,
+        shiftedSec,
+        revealMs,
+        config.secondaryStyle ?? 'none',
+      );
+      trackPrimaryOffset = 0;
+      trackSecondaryOffset = 0;
+    }
+
     const primaryTrack: SubtitleTrack = {
       id: primaryAsset.sourceId,
       language: primaryAsset.language,
       label: primaryAsset.language,
       source: 'local',
-      cues: styledPrimary,
-      offset: config.primaryOffsetMs,
+      cues: finalPrimaryCues,
+      offset: trackPrimaryOffset,
       enabled: true,
     };
 
@@ -332,8 +532,8 @@ export class SubtitleFileService {
       language: secondaryAsset.language,
       label: secondaryAsset.language,
       source: 'local',
-      cues: styledSecondary,
-      offset: config.secondaryOffsetMs,
+      cues: finalSecondaryCues,
+      offset: trackSecondaryOffset,
       enabled: true,
     };
 
@@ -349,6 +549,7 @@ export class SubtitleFileService {
       fingerprint,
       sourceIds: [primaryAsset.sourceId, secondaryAsset.sourceId],
       cueCount: mergedCues.length,
+      syncPercent,
     });
 
     return {
@@ -359,6 +560,7 @@ export class SubtitleFileService {
       sessionScope,
       autoSyncApplied,
       autoSyncOffsetMs,
+      syncPercent,
     };
   }
 }

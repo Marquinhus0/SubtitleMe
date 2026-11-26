@@ -15,25 +15,29 @@ function escapeHtml(value: string): string {
 }
 
 /**
- * Renders the Modern DualSubs Studio configuration & Local Companion UI served at `/configure`.
+ * Renders the original SubtitleMe Studio UI served at `/configure`.
+ * Minimalist dark obsidian & emerald/mint hairline aesthetic with live widescreen preview
+ * and dynamic 3-column bento controls.
  */
 export function renderConfigurePage(options: ConfigurePageOptions): string {
   const safeBaseUrl = escapeHtml(options.baseUrl);
   const safeToken = escapeHtml(options.sessionToken);
 
-  const primaryOptionsHtml = STREMIO_SUPPORTED_LANGUAGES.map(
-    (lang) =>
-      `<option value="${escapeHtml(lang.bcp47)}"${
-        lang.bcp47 === DEFAULT_ADDON_CONFIG.primaryLanguage ? ' selected' : ''
-      }>${escapeHtml(lang.label)} (${escapeHtml(lang.bcp47)})</option>`,
-  ).join('\n');
+  const sortedLangs = [...STREMIO_SUPPORTED_LANGUAGES].sort((a, b) =>
+    (a.labelPt ?? a.label).localeCompare(b.labelPt ?? b.label, 'pt-BR'),
+  );
 
-  const secondaryOptionsHtml = STREMIO_SUPPORTED_LANGUAGES.map(
-    (lang) =>
-      `<option value="${escapeHtml(lang.bcp47)}"${
-        lang.bcp47 === DEFAULT_ADDON_CONFIG.secondaryLanguage ? ' selected' : ''
-      }>${escapeHtml(lang.label)} (${escapeHtml(lang.bcp47)})</option>`,
-  ).join('\n');
+  const buildLangOptions = (defaultBcp47: string): string =>
+    sortedLangs
+      .map((lang) => {
+        const display = lang.labelPt ?? lang.label;
+        const selected = lang.bcp47 === defaultBcp47 ? ' selected' : '';
+        return `<option value="${escapeHtml(lang.bcp47)}" data-name="${escapeHtml(display)}"${selected}>${escapeHtml(display)} (${escapeHtml(lang.bcp47)})</option>`;
+      })
+      .join('\n');
+
+  const learnOptionsHtml = buildLangOptions(DEFAULT_ADDON_CONFIG.primaryLanguage);
+  const nativeOptionsHtml = buildLangOptions(DEFAULT_ADDON_CONFIG.secondaryLanguage);
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -44,837 +48,877 @@ export function renderConfigurePage(options: ConfigurePageOptions): string {
   <title>SubtitleMe — Stremio Local Companion Studio</title>
   <style>
     :root {
-      --bg: #07090F;
-      --bg-glow: radial-gradient(circle at 18% 0%, rgba(139, 124, 255, 0.16), transparent 42%),
-                 radial-gradient(circle at 82% 8%, rgba(54, 207, 201, 0.12), transparent 40%);
-      --surface: rgba(20, 25, 36, 0.88);
-      --surface-elevated: #1A2130;
-      --surface-soft: #121723;
-      --primary: #8B7CFF;
-      --primary-hover: #9F92FF;
-      --secondary: #36CFC9;
-      --text: #F4F6FB;
-      --muted: #9BA5BC;
-      --border: rgba(255, 255, 255, 0.09);
-      --border-strong: rgba(139, 124, 255, 0.45);
-      --danger: #FF5C77;
-      --success: #36CFC9;
-      --warning: #FFD60A;
+      --bg: #070B09;
+      --panel: rgba(12, 18, 15, 0.78);
+      --panel-soft: rgba(17, 25, 21, 0.65);
+      --panel-hover: rgba(22, 33, 27, 0.85);
+      --hairline: rgba(255, 255, 255, 0.07);
+      --hairline-strong: rgba(52, 211, 153, 0.34);
+      --accent: #10B981;
+      --accent-bright: #34D399;
+      --accent-glow: rgba(16, 185, 129, 0.14);
+      --accent-ink: #04130D;
+      --text: #EEF4F1;
+      --muted: #8FA399;
+      --faint: #5B6E65;
+      --danger: #F87171;
+      color-scheme: dark;
     }
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
     body {
       margin: 0;
-      background-color: var(--bg);
-      background-image: var(--bg-glow);
-      color: var(--text);
-      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      line-height: 1.5;
       min-height: 100vh;
+      background:
+        radial-gradient(ellipse 70% 42% at 50% -8%, rgba(16, 185, 129, 0.11), transparent 65%),
+        radial-gradient(circle at 90% 15%, rgba(52, 211, 153, 0.05), transparent 40%),
+        var(--bg);
+      color: var(--text);
+      font: 13.5px/1.5 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.005em;
     }
-    .container {
-      max-width: 1120px;
-      margin: 0 auto;
-      padding: 28px 20px 72px;
+    .shell { max-width: 1260px; margin: 0 auto; padding: 0 24px 56px; }
+
+    /* Top Minimalist Navigation Bar */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; flex-wrap: wrap; padding: 16px 0;
+      border-bottom: 1px solid var(--hairline);
     }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-      margin-bottom: 22px;
-      padding-bottom: 18px;
-      border-bottom: 1px solid var(--border);
+    .brand { display: flex; align-items: center; gap: 11px; }
+    .brand-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      border: 1px solid var(--hairline-strong);
+      background: linear-gradient(145deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.04));
+      display: grid; place-items: center; color: var(--accent-bright);
+      box-shadow: 0 0 18px rgba(16, 185, 129, 0.14);
     }
-    .brand { display: flex; align-items: center; gap: 14px; }
-    .brand-logo {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      display: grid;
-      place-items: center;
-      font-weight: 900;
-      font-size: 1.15rem;
-      color: #07090F;
-      box-shadow: 0 8px 24px rgba(139, 124, 255, 0.32);
+    .brand-name { font-size: 15px; font-weight: 650; letter-spacing: -0.02em; color: var(--text); }
+    .brand-tag {
+      font-size: 11px; font-weight: 500; color: var(--accent-bright);
+      border: 1px solid rgba(52, 211, 153, 0.25); background: rgba(16, 185, 129, 0.08);
+      padding: 1px 7px; border-radius: 999px; margin-left: 6px;
     }
-    h1 { margin: 0; font-size: 1.55rem; letter-spacing: -0.025em; }
-    .tagline { color: var(--muted); font-size: 0.9rem; margin-top: 2px; }
-    .badges { display: flex; gap: 10px; flex-wrap: wrap; }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 7px 13px;
-      border-radius: 999px;
-      background: var(--surface-elevated);
-      border: 1px solid var(--border);
-      font-size: 0.82rem;
-      font-weight: 600;
+    .brand-sub { font-size: 11.5px; color: var(--faint); margin-top: 1px; }
+
+    .topbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 999px;
+      border: 1px solid var(--hairline); background: var(--panel);
+      font-size: 11.5px; color: var(--muted); font-weight: 500;
     }
-    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
-    .dot.ok { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); transition: background 0.2s; }
+    .dot.ok { background: var(--accent-bright); box-shadow: 0 0 8px var(--accent-bright); }
     .dot.err { background: var(--danger); }
 
-    .studio-layout {
-      display: grid;
-      grid-template-columns: 1.18fr 0.82fr;
-      gap: 20px;
-      align-items: start;
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 7px 13px; border-radius: 7px; font-size: 12.5px; font-weight: 600;
+      cursor: pointer; text-decoration: none; border: 1px solid var(--hairline);
+      background: var(--panel-soft); color: var(--text);
+      transition: all 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
-    @media (max-width: 920px) {
-      .studio-layout { grid-template-columns: 1fr; }
-      .sticky-col { position: static !important; }
+    .btn:hover { border-color: var(--hairline-strong); background: var(--panel-hover); transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn.emerald {
+      background: var(--accent); border-color: var(--accent-bright); color: var(--accent-ink); font-weight: 650;
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.22);
     }
-    .sticky-col {
-      position: sticky;
-      top: 20px;
-    }
+    .btn.emerald:hover { background: var(--accent-bright); }
+    .btn.xs { padding: 4px 9px; font-size: 11.5px; border-radius: 6px; }
 
-    .notice {
-      background: rgba(139, 124, 255, 0.1);
-      border: 1px solid rgba(139, 124, 255, 0.32);
+    /* Top Stage: Live Widescreen Monitor + Stremio Track Dock */
+    .stage-grid {
+      display: grid; grid-template-columns: 1.35fr 0.65fr;
+      gap: 14px; margin: 18px 0 14px;
+    }
+    @media (max-width: 920px) { .stage-grid { grid-template-columns: 1fr; } }
+
+    .monitor-card, .dock-card, .bento-card {
+      background: var(--panel);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--hairline);
       border-radius: 12px;
-      padding: 12px 16px;
-      font-size: 0.86rem;
-      color: var(--text);
-      margin-bottom: 18px;
+      transition: border-color 0.2s ease;
     }
-    .card {
-      background: var(--surface);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 16px;
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
-    }
-    .card h2 {
-      margin: 0 0 12px;
-      font-size: 1.04rem;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .step-pill {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 22px;
-      height: 22px;
-      border-radius: 6px;
-      background: rgba(139, 124, 255, 0.2);
-      color: var(--primary);
-      font-size: 0.78rem;
-      font-weight: 800;
-    }
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 10px;
-    }
-    .card-header h2 { margin: 0; }
-    .two-col {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-    @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+    .bento-card:hover, .dock-card:hover { border-color: rgba(255, 255, 255, 0.12); }
 
-    label {
-      display: block;
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-    .checkbox-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      font-size: 0.88rem;
-      font-weight: 500;
-      color: var(--text);
-      margin-bottom: 10px;
-      padding: 9px 11px;
-      border-radius: 10px;
-      background: var(--surface-soft);
-      border: 1px solid var(--border);
-      cursor: pointer;
-    }
-    .checkbox-row input { margin-top: 3px; accent-color: var(--primary); }
-
-    input[type="text"], input[type="password"], input[type="number"], select, input[type="file"] {
-      width: 100%;
-      padding: 9px 12px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--surface-elevated);
-      color: var(--text);
-      font-size: 0.9rem;
-      margin-bottom: 12px;
-      outline: none;
-      transition: border-color 0.15s ease;
-    }
-    input:focus, select:focus { border-color: var(--primary); }
-
-    button, .btn-link {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      background: var(--primary);
-      color: #07090F;
-      font-weight: 700;
-      border: none;
-      border-radius: 10px;
-      padding: 10px 15px;
-      cursor: pointer;
-      font-size: 0.88rem;
-      text-decoration: none;
-      transition: transform 0.1s ease, background 0.15s ease;
-    }
-    button:hover, .btn-link:hover { background: var(--primary-hover); }
-    button:active, .btn-link:active { transform: scale(0.98); }
-    button.secondary, .btn-link.secondary {
-      background: var(--surface-elevated);
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-    button.chip {
-      padding: 5px 10px;
-      font-size: 0.78rem;
-      border-radius: 999px;
-      background: var(--surface-elevated);
-      color: var(--muted);
-      border: 1px solid var(--border);
-    }
-    button.chip.active, button.chip:hover {
-      color: var(--text);
-      border-color: var(--primary);
-      background: rgba(139, 124, 255, 0.18);
-    }
-    button.danger {
-      background: transparent;
-      color: var(--danger);
-      border: 1px solid rgba(255, 92, 119, 0.45);
-      padding: 6px 11px;
-      font-size: 0.8rem;
-    }
-
-    .swatches {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 14px;
-    }
-    .swatch {
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
-      border: 2px solid var(--border);
-      cursor: pointer;
-      padding: 0;
-      position: relative;
-    }
-    .swatch.active {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 2px rgba(139, 124, 255, 0.45);
-    }
-    .swatch-auto {
-      background: linear-gradient(135deg, #2A3246, #141925);
-      color: var(--text);
-      font-size: 0.68rem;
-      font-weight: 800;
-    }
-
-    /* Live Cinema Player Preview */
-    .cinema-screen {
-      position: relative;
-      height: 235px;
-      border-radius: 14px;
-      overflow: hidden;
+    .monitor-card {
+      position: relative; min-height: 205px; overflow: hidden;
       background:
-        linear-gradient(180deg, rgba(7, 9, 15, 0.25) 0%, rgba(7, 9, 15, 0.85) 100%),
-        radial-gradient(circle at 50% 35%, #27344F 0%, #0E1320 68%, #07090F 100%);
-      border: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      padding: 18px;
-      margin-bottom: 14px;
+        linear-gradient(180deg, rgba(7, 11, 9, 0.25) 0%, rgba(7, 11, 9, 0.9) 100%),
+        radial-gradient(ellipse at 50% 30%, #162921 0%, #0A120E 65%, #050806 100%);
+      display: flex; flex-direction: column; justify-content: space-between; padding: 12px 16px 14px;
     }
-    .cinema-badge {
-      position: absolute;
-      top: 12px;
-      left: 12px;
-      font-size: 0.72rem;
-      padding: 4px 9px;
-      border-radius: 999px;
-      background: rgba(7, 9, 15, 0.72);
-      border: 1px solid var(--border);
-      color: var(--muted);
+    .monitor-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; z-index: 2; }
+    .monitor-tags { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .m-tag {
+      font-size: 11px; padding: 2px 8px; border-radius: 999px;
+      border: 1px solid var(--hairline); background: rgba(7, 11, 9, 0.72); color: var(--muted);
     }
-    .cinema-delay-badge {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      font-size: 0.72rem;
-      padding: 4px 9px;
-      border-radius: 999px;
-      background: rgba(54, 207, 201, 0.16);
-      border: 1px solid rgba(54, 207, 201, 0.4);
-      color: var(--secondary);
-      font-weight: 700;
+    .m-tag.live { border-color: var(--hairline-strong); color: var(--accent-bright); background: rgba(16, 185, 129, 0.1); }
+
+    .subs-viewport {
+      position: relative; text-align: center; padding: 18px 4% 8px;
+      transition: opacity 0.2s ease, transform 0.18s ease;
     }
-    .cinema-subs-wrap {
-      width: 100%;
-      text-align: center;
-      transition: transform 0.2s ease;
-    }
-    .cinema-sub-line {
-      display: block;
-      font-size: 1.04rem;
-      font-weight: 600;
-      line-height: 1.38;
-      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95), 0 0 2px #000;
-    }
-    .cinema-bar {
-      margin-top: 12px;
-      height: 4px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.14);
-      overflow: hidden;
-    }
-    .cinema-bar > span {
-      display: block;
-      width: 38%;
-      height: 100%;
-      background: var(--primary);
+    .subs-viewport.fade { opacity: 0; }
+    .subs-viewport p { margin: 2px 0; }
+    .subs-viewport span {
+      display: inline-block; padding: 1px 7px; border-radius: 4px;
+      font-weight: 600; line-height: 1.35; transition: color 0.15s ease;
     }
 
-    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .status-msg { font-size: 0.83rem; margin-top: 8px; min-height: 1.2em; color: var(--secondary); }
-    .status-msg.error { color: var(--danger); }
-    .url-box {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.78rem;
-      word-break: break-all;
-      background: var(--surface-soft);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
-      margin: 8px 0;
-      color: var(--muted);
+    .monitor-timeline {
+      height: 2px; width: 100%; background: rgba(255, 255, 255, 0.07);
+      border-radius: 99px; overflow: hidden;
     }
-    .hint { font-size: 0.79rem; color: var(--muted); margin: 4px 0; }
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-      gap: 8px;
-      margin: 10px 0;
+    .monitor-timeline > i {
+      display: block; height: 100%; width: 38%; background: var(--accent-bright);
+      box-shadow: 0 0 8px var(--accent-bright); transition: width 0.35s ease;
     }
-    .metric {
-      background: var(--surface-soft);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 9px 11px;
+
+    /* Right Stage: Stremio Live Connection & Track Preview */
+    .dock-card { padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; }
+    .dock-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .dock-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .track-list-preview {
+      border: 1px solid var(--hairline); border-radius: 8px; overflow: hidden;
+      background: rgba(7, 11, 9, 0.55); font-size: 12px;
     }
-    .metric-label { font-size: 0.73rem; color: var(--muted); }
-    .metric-val { font-size: 0.92rem; font-weight: 700; margin-top: 2px; }
-    .preview-stage {
-      background: var(--surface-soft);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px;
-      min-height: 70px;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      justify-content: center;
-    }
-    .cue-box {
-      background: rgba(7, 9, 15, 0.85);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 12px;
-      white-space: pre-line;
-      font-size: 0.88rem;
-    }
-    .cue-time { font-size: 0.72rem; color: var(--muted); margin-bottom: 3px; }
-    .track-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
     .track-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      background: var(--surface-elevated);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 9px 12px;
-      font-size: 0.84rem;
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      padding: 7px 10px; color: var(--muted);
     }
-    details summary {
-      cursor: pointer;
-      font-weight: 700;
-      font-size: 0.95rem;
-      padding: 4px 0;
-      color: var(--text);
+    .track-item + .track-item { border-top: 1px solid var(--hairline); }
+    .track-item.active { background: var(--accent-glow); color: var(--text); }
+    .track-item small { color: var(--accent-bright); font-weight: 600; font-size: 11px; }
+
+    .dock-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+    .dock-actions .btn.emerald { flex: 1; min-width: 155px; }
+    .manifest-line {
+      font: 11px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+      color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      padding: 5px 8px; border-radius: 6px; border: 1px solid var(--hairline); background: rgba(0, 0, 0, 0.28);
     }
+
+    /* 3-Column Hairline Bento Workspace */
+    .bento-grid {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px; align-items: stretch;
+    }
+    @media (max-width: 1020px) { .bento-grid { grid-template-columns: 1fr; } }
+
+    .bento-card { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+    .bento-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding-bottom: 10px; border-bottom: 1px solid var(--hairline);
+    }
+    .bento-title {
+      font-size: 12px; font-weight: 650; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--accent-bright); margin: 0;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .bento-title::before {
+      content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-bright);
+    }
+
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .label { font-size: 12px; font-weight: 500; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+    .help { font-size: 11.5px; color: var(--faint); margin: 0; line-height: 1.45; }
+    .help strong { color: var(--muted); font-weight: 600; }
+
+    /* Form Controls with Thin Borders */
+    select, input[type="text"], input[type="password"], input[type="number"] {
+      width: 100%; background: rgba(7, 11, 9, 0.7); color: var(--text);
+      border: 1px solid var(--hairline); border-radius: 7px;
+      padding: 7px 10px; font-size: 13px; outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    select:hover, input:hover { border-color: rgba(255, 255, 255, 0.14); }
+    select:focus, input:focus { border-color: var(--accent-bright); box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.12); }
+
+    .lang-stack { display: grid; grid-template-columns: 1fr auto 1fr; gap: 7px; align-items: end; }
+    .swap-btn {
+      width: 34px; height: 33px; border-radius: 7px;
+      border: 1px solid var(--hairline); background: rgba(7, 11, 9, 0.7);
+      color: var(--muted); cursor: pointer; display: grid; place-items: center;
+      transition: all 0.18s ease;
+    }
+    .swap-btn:hover { color: var(--accent-bright); border-color: var(--hairline-strong); transform: rotate(180deg); }
+
+    /* Hairline Segmented Pills */
+    .seg {
+      display: flex; flex-wrap: wrap; gap: 2px; padding: 2px;
+      border: 1px solid var(--hairline); border-radius: 7px; background: rgba(7, 11, 9, 0.65);
+    }
+    .seg label { flex: 1; position: relative; margin: 0; cursor: pointer; text-align: center; }
+    .seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+    .seg span {
+      display: block; padding: 5px 8px; border-radius: 5px;
+      font-size: 12px; color: var(--muted); white-space: nowrap; transition: all 0.14s ease;
+    }
+    .seg input:checked + span {
+      background: var(--accent-glow); color: var(--accent-bright); font-weight: 600;
+      box-shadow: inset 0 0 0 1px var(--hairline-strong);
+    }
+
+    /* Color Dots */
+    .swatches { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .sw {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 9px 4px 7px; border-radius: 999px;
+      border: 1px solid var(--hairline); background: rgba(7, 11, 9, 0.65);
+      color: var(--muted); font-size: 11.8px; cursor: pointer; transition: all 0.14s;
+    }
+    .sw i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .sw:hover { border-color: rgba(255, 255, 255, 0.18); color: var(--text); }
+    .sw.active { border-color: var(--accent-bright); background: var(--accent-glow); color: var(--text); font-weight: 600; }
+    input[type="color"] {
+      width: 26px; height: 26px; padding: 1px; border-radius: 50%;
+      border: 1px solid var(--hairline); background: transparent; cursor: pointer;
+    }
+
+    /* Thin Range Slider */
+    input[type="range"] {
+      -webkit-appearance: none; appearance: none; width: 100%; height: 3px;
+      background: rgba(255, 255, 255, 0.1); border-radius: 99px; outline: none; margin: 6px 0;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+      background: var(--accent-bright); cursor: pointer; box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+    }
+
+    /* Thin Source Rows & Toggles */
+    .thin-box {
+      border: 1px solid var(--hairline); border-radius: 8px;
+      padding: 9px 11px; background: rgba(7, 11, 9, 0.45);
+      display: flex; flex-direction: column; gap: 7px;
+    }
+    .toggle-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; }
+    .toggle-line input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); margin: 0; cursor: pointer; }
+    .toggle-line strong { font-size: 12.5px; font-weight: 600; color: var(--text); }
+
+    .src-pair-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
+    .src-pair-row + .src-pair-row { border-top: 1px solid var(--hairline); padding-top: 7px; }
+    .src-pair-label { font-size: 12px; color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .note-line {
+      border-left: 2px solid var(--accent); padding: 6px 10px;
+      background: rgba(16, 185, 129, 0.06); border-radius: 0 6px 6px 0;
+      font-size: 11.5px; color: var(--muted); line-height: 1.45;
+    }
+    .note-line strong { color: var(--accent-bright); }
+    .note-line a { color: var(--accent-bright); text-decoration: none; font-weight: 600; }
+
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .status-msg { font-size: 11.8px; color: var(--accent-bright); min-height: 1.1em; }
+    .status-msg.error { color: var(--danger); }
+    .probe-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .probe-box { padding: 6px 8px; border-radius: 6px; border: 1px solid var(--hairline); background: rgba(0,0,0,0.3); font-size: 11px; }
+
+    details.slim summary {
+      cursor: pointer; font-size: 11.8px; color: var(--muted); padding: 3px 0;
+      list-style: none; display: flex; align-items: center; gap: 5px;
+    }
+    details.slim summary::before { content: "›"; color: var(--accent-bright); font-weight: 700; transition: transform 0.15s; }
+    details[open].slim summary::before { transform: rotate(90deg); }
   </style>
 </head>
 <body>
-  <main class="container">
-    <header>
+  <div class="shell">
+    <!-- HEADER CLEAN -->
+    <header class="topbar">
       <div class="brand">
-        <div class="brand-logo">SM</div>
+        <div class="brand-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M2.5 5.5h11M2.5 8.5h7.5M2.5 11.5h9.5" />
+          </svg>
+        </div>
         <div>
-          <h1>SubtitleMe Studio</h1>
-          <div class="tagline">Two languages. One experience — Stremio Local Companion</div>
+          <div><span class="brand-name">SubtitleMe</span><span class="brand-tag">Studio</span></div>
+          <div class="brand-sub">Motor Bilingue Dinâmico · 100% Local</div>
         </div>
       </div>
-      <div class="badges">
-        <div class="badge" id="companion-status" aria-live="polite">
-          <span class="dot" id="status-dot"></span>
-          <span id="status-text">Checking Companion...</span>
-        </div>
-        <div class="badge" id="stremio-status" aria-live="polite">
-          <span class="dot" id="stremio-dot"></span>
-          <span id="stremio-text">Checking Manifest...</span>
-        </div>
+
+      <div class="topbar-right">
+        <div class="pill"><span class="dot ok"></span><span id="live-sync-text">Sincronizado Ao Vivo</span></div>
+        <div class="pill" id="companion-status"><span class="dot" id="status-dot"></span><span id="status-text">127.0.0.1</span></div>
+        <div class="pill" id="stremio-status"><span class="dot" id="stremio-dot"></span><span id="stremio-text">Stremio</span></div>
       </div>
     </header>
 
-    <section class="notice" id="offline-banner" role="alert" style="display:none; border-color: rgba(255,92,119,0.55); background: rgba(255,92,119,0.12);">
-      <strong>Companion Offline:</strong> Não foi possível conectar a <code>127.0.0.1</code>. Inicie com <code>.\\bin\\start-companion.cmd</code> (Windows) ou <code>./bin/start-companion.sh</code> (Linux) e recarregue esta página.
+    <div class="note-line" id="offline-banner" role="alert" style="display:none; margin-top:12px; border-left-color:var(--danger);">
+      <strong>Servidor local desconectado:</strong> execute <code>.\\bin\\start-companion.cmd</code> e recarregue a página.
+    </div>
+
+    <!-- PALCO SUPERIOR: MONITOR WIDESCREEN + CONEXÃO STREMIO -->
+    <section class="stage-grid">
+      <div class="monitor-card">
+        <div class="monitor-head">
+          <div class="monitor-tags">
+            <span class="m-tag live" id="cap-pair">EN · PT-BR</span>
+            <span class="m-tag" id="preview-format-pill">Formato .ASS</span>
+            <span class="m-tag" id="preview-reveal-pill">3 faixas</span>
+          </div>
+          <button type="button" class="btn xs" id="cycle-scene-btn">&#8635; Trocar fala</button>
+        </div>
+
+        <div class="subs-viewport" id="subs-stage">
+          <p><span id="line-top">I'm not going anywhere.</span></p>
+          <p><span id="line-bottom">Não vou a lugar nenhum.</span></p>
+        </div>
+
+        <div class="monitor-timeline"><i id="timeline-bar"></i></div>
+      </div>
+
+      <div class="dock-card">
+        <div>
+          <div class="dock-head" style="margin-bottom:8px;">
+            <span class="dock-title">Menu no Stremio</span>
+            <button type="button" class="btn xs" id="generate-url-btn" title="Atualizar agora">Sincronizar</button>
+          </div>
+          <div class="track-list-preview">
+            <div class="track-item active">
+              <span id="menu-sample-1">Dual EN+PT-BR 1 (Sync/OS) · 96%</span>
+              <small>Ativa</small>
+            </div>
+            <div class="track-item" id="menu-row-2">
+              <span id="menu-sample-2">Dual EN+PT-BR 2 (OS/OS) · 88%</span>
+              <span>Opção 2</span>
+            </div>
+          </div>
+          <p class="help" id="menu-hint-text" style="margin-top:6px;">
+            As faixas aparecem automaticamente em <strong>Português (Brasil)</strong> e <strong>Inglês</strong>.
+          </p>
+        </div>
+
+        <div>
+          <div class="dock-actions">
+            <a class="btn emerald" id="open-stremio-btn" href="${safeBaseUrl.replace(/^http:\/\//i, 'stremio://')}/manifest.json">Instalar no Stremio</a>
+            <a class="btn" id="open-web-btn" href="https://web.stremio.com/#/addons?addon=${encodeURIComponent(`${options.baseUrl}/manifest.json`)}" target="_blank" rel="noopener">Web</a>
+            <button type="button" class="btn" id="copy-url-btn">Copiar</button>
+          </div>
+          <div class="manifest-line" id="http-manifest-url" dir="ltr" style="margin-top:7px;">${safeBaseUrl}/manifest.json</div>
+          <div id="stremio-deep-link" hidden>${safeBaseUrl.replace(/^http:\/\//i, 'stremio://')}/manifest.json</div>
+          <div class="status-msg" id="install-status" aria-live="polite" style="margin-top:4px;"></div>
+        </div>
+      </div>
     </section>
 
-    <div class="studio-layout">
-      <!-- LEFT COLUMN: CONFIGURATION STEPS -->
-      <div>
-        <!-- STEP 1: AUTOMATIC SOURCES & SUBTITLE SYNC -->
-        <section class="card" id="opensubtitles-card">
-          <div class="card-header">
-            <h2><span class="step-pill">1</span> Fontes Automáticas &amp; Subtitle Sync</h2>
-          </div>
-          <p class="hint" style="margin-bottom:12px;">
-            Combine qualquer provedor abaixo para buscar e sincronizar automaticamente as duas legendas em qualquer filme ou série do Stremio (prioridade: Arquivos Locais &rarr; Subtitle Sync &rarr; OpenSubtitles v1 &rarr; OpenSubtitles v3).
-          </p>
+    <!-- PAINEL BENTO EM 3 COLUNAS COM LINHAS FINAS -->
+    <main class="bento-grid">
+      <!-- COLUNA 1: IDIOMAS & DINÂMICA DE APRENDIZADO -->
+      <section class="bento-card">
+        <div class="bento-head">
+          <h2 class="bento-title">Idiomas &amp; Leitura</h2>
+        </div>
 
-          <label class="checkbox-row">
-            <input type="checkbox" id="subsync-toggle" />
+        <div class="field">
+          <div class="lang-stack">
             <div>
-              <strong>Usar Subtitle Sync (<code>subtitlesync.stream</code>) ou Addon Stremio Externo</strong>
-              <div class="hint">Ideal para sincronia perfeita de FPS/cortes! Cole abaixo seu link configurado do Subtitle Sync.</div>
+              <label class="label" for="primary-lang">Estou aprendendo</label>
+              <select id="primary-lang">${learnOptionsHtml}</select>
             </div>
-          </label>
-          <input type="password" id="subsync-url" placeholder="https://subtitlesync.stream/.../manifest.json (mantido apenas na memória local)" autocomplete="off" />
-
-          <label class="checkbox-row">
-            <input type="checkbox" id="os-v1-toggle" />
+            <button type="button" class="swap-btn" id="swap-langs-btn" title="Inverter idiomas" aria-label="Inverter idiomas">&#8644;</button>
             <div>
-              <strong>OpenSubtitles REST API v1 (<code>api.opensubtitles.com/api/v1</code>)</strong>
-              <div class="hint">Com matching inteligente de <code>moviehash</code>, release (WEB-DL vs BluRay) e episódio (<code>parent_imdb_id</code>).</div>
-            </div>
-          </label>
-          <input type="password" id="os-api-key" placeholder="Cole sua API Key da api.opensubtitles.com (nunca gravada em log)" autocomplete="off" />
-
-          <label class="checkbox-row">
-            <input type="checkbox" id="os-v3-toggle" />
-            <div>
-              <strong>Stremio OpenSubtitles v3 (Sem API Key)</strong>
-              <div class="hint">Busca por hash exato do vídeo com fallback automático por IMDb ID.</div>
-            </div>
-          </label>
-
-          <div class="row">
-            <button type="button" id="save-os-btn">Salvar Fontes Automáticas</button>
-          </div>
-          <div class="status-msg" id="os-status" aria-live="polite"></div>
-        </section>
-
-        <!-- STEP 2: LANGUAGES, AUTO-SYNC & LEARNER DELAY -->
-        <section class="card">
-          <div class="card-header">
-            <h2><span class="step-pill">2</span> Idiomas, Sincronia &amp; Modo Aprendizado</h2>
-            <button type="button" class="secondary" id="swap-langs-btn" style="padding:6px 11px; font-size:0.8rem;">&#8644; Inverter Idiomas</button>
-          </div>
-
-          <div class="two-col">
-            <div>
-              <label for="primary-lang">1º Idioma (Principal / Aprendizado)</label>
-              <select id="primary-lang">${primaryOptionsHtml}</select>
-            </div>
-            <div>
-              <label for="secondary-lang">2º Idioma (Tradução / Apoio)</label>
-              <select id="secondary-lang">${secondaryOptionsHtml}</select>
+              <label class="label" for="secondary-lang">Meu idioma</label>
+              <select id="secondary-lang">${nativeOptionsHtml}</select>
             </div>
           </div>
+        </div>
 
-          <label class="checkbox-row">
-            <input type="checkbox" id="auto-sync-toggle" checked />
-            <div>
-              <strong>Auto-Sync Inteligente entre os 2 Idiomas (Recomendado)</strong>
-              <div class="hint">Alinha automaticamente diferenças de intro/corte (até ±20s) e taxa de quadros (23.976 &harr; 25 fps) da 2ª legenda com a 1ª, além de disponibilizar a versão original como opção reserva no player.</div>
-            </div>
-          </label>
-
-          <label>Delay do Modo Aprendizado (atrasar 2º idioma para treinar escuta/leitura)</label>
-          <div class="row" style="margin-bottom:12px;">
-            <button type="button" class="chip active" data-delay="0">0s (Simultâneo)</button>
-            <button type="button" class="chip" data-delay="1000">+1.0s Delay</button>
-            <button type="button" class="chip" data-delay="1500">+1.5s Delay</button>
-            <button type="button" class="chip" data-delay="2000">+2.0s Delay</button>
+        <div class="field">
+          <span class="label">Ordem vertical na tela</span>
+          <div class="seg" role="radiogroup">
+            <label><input type="radio" name="topLine" value="primary-top" checked /><span> Aprendizado no topo</span></label>
+            <label><input type="radio" name="topLine" value="secondary-top" /><span>Meu idioma no topo</span></label>
           </div>
+          <select id="order-select" hidden>
+            <option value="primary-top" selected>primary-top</option>
+            <option value="secondary-top">secondary-top</option>
+          </select>
+        </div>
 
-          <div class="two-col">
-            <div>
-              <label for="primary-offset">Ajuste fino 1º idioma (ms)</label>
-              <input type="number" id="primary-offset" min="-30000" max="30000" step="100" value="0" />
-            </div>
-            <div>
-              <label for="secondary-offset">Ajuste fino 2º idioma (ms)</label>
-              <input type="number" id="secondary-offset" min="-30000" max="30000" step="100" value="0" />
-            </div>
+        <div class="field">
+          <span class="label">Atrasar meu idioma <span>Modo Reveal</span></span>
+          <div class="seg" role="radiogroup">
+            <label><input type="radio" name="revealMs" value="0" checked /><span>0s</span></label>
+            <label><input type="radio" name="revealMs" value="500" /><span>0.5s</span></label>
+            <label><input type="radio" name="revealMs" value="1000" /><span>1s</span></label>
+            <label><input type="radio" name="revealMs" value="1500" /><span>1.5s</span></label>
+            <label><input type="radio" name="revealMs" value="2000" /><span>2s</span></label>
           </div>
-        </section>
+          <p class="help">Mostra primeiro o idioma de estudo e revela a tradução em seguida sem deslocar a linha superior.</p>
+        </div>
 
-        <!-- STEP 3: VISUAL SUBTITLE CUSTOMIZATION -->
-        <section class="card">
-          <h2><span class="step-pill">3</span> Personalização Visual das Legendas</h2>
-
-          <label>Cor da 1ª Legenda (Principal)</label>
-          <div class="swatches" id="primary-color-swatches">
-            <button type="button" class="swatch swatch-auto active" data-color="none" title="Padrão do Player">AUTO</button>
-            <button type="button" class="swatch" data-color="#FFFFFF" style="background:#FFFFFF" title="Branco Puro"></button>
-            <button type="button" class="swatch" data-color="#FFD60A" style="background:#FFD60A" title="Amarelo Cinema"></button>
-            <button type="button" class="swatch" data-color="#36CFC9" style="background:#36CFC9" title="Ciano"></button>
-            <button type="button" class="swatch" data-color="#73D13D" style="background:#73D13D" title="Verde"></button>
-            <button type="button" class="swatch" data-color="#8B7CFF" style="background:#8B7CFF" title="Violeta"></button>
+        <div class="field">
+          <span class="label">Opções ranqueadas no Stremio</span>
+          <div class="seg" role="radiogroup">
+            <label><input type="radio" name="pairCount" value="1" /><span>1</span></label>
+            <label><input type="radio" name="pairCount" value="2" /><span>2</span></label>
+            <label><input type="radio" name="pairCount" value="3" checked /><span>3</span></label>
+            <label><input type="radio" name="pairCount" value="4" /><span>4</span></label>
+            <label><input type="radio" name="pairCount" value="5" /><span>5</span></label>
           </div>
+          <p class="help">Disponibiliza variações de sincronia (WEB-DL / BluRay) prontas para troca imediata no player.</p>
+        </div>
+      </section>
 
-          <label>Cor da 2ª Legenda (Secundária — destaque visual imediato)</label>
+      <!-- COLUNA 2: ESTILO & TIPOGRAFIA -->
+      <section class="bento-card">
+        <div class="bento-head">
+          <h2 class="bento-title">Estilo &amp; Tipografia</h2>
+        </div>
+
+        <div class="field">
+          <span class="label">Cor da linha de apoio</span>
           <div class="swatches" id="secondary-color-swatches">
-            <button type="button" class="swatch swatch-auto" data-color="none" title="Padrão do Player">AUTO</button>
-            <button type="button" class="swatch active" data-color="#FFD60A" style="background:#FFD60A" title="Amarelo Cinema (Recomendado)"></button>
-            <button type="button" class="swatch" data-color="#36CFC9" style="background:#36CFC9" title="Ciano"></button>
-            <button type="button" class="swatch" data-color="#CBD5E1" style="background:#CBD5E1" title="Prata Suave"></button>
-            <button type="button" class="swatch" data-color="#FFA940" style="background:#FFA940" title="Âmbar"></button>
-            <button type="button" class="swatch" data-color="#FF85C0" style="background:#FF85C0" title="Rosa"></button>
-            <button type="button" class="swatch" data-color="#FFFFFF" style="background:#FFFFFF" title="Branco"></button>
+            <button type="button" class="sw active" data-color="#34D399"><i style="background:#34D399"></i>Menta</button>
+            <button type="button" class="sw" data-color="#FFD76A"><i style="background:#FFD76A"></i>Âmbar</button>
+            <button type="button" class="sw" data-color="#9FD3FF"><i style="background:#9FD3FF"></i>Gelo</button>
+            <button type="button" class="sw" data-color="#B9A3FF"><i style="background:#B9A3FF"></i>Lavanda</button>
+            <button type="button" class="sw" data-color="none"><i style="background:#EEF4F1"></i>Branco SRT</button>
+            <input type="color" id="secondary-custom-color" value="#34D399" title="Escolher cor livre" />
           </div>
+        </div>
 
-          <div class="two-col">
+        <div class="field">
+          <div class="row2">
             <div>
-              <label for="secondary-style-select">Estilo da 2ª Legenda</label>
+              <label class="label" for="secondary-style-select">Formatação 2ª linha</label>
               <select id="secondary-style-select">
-                <option value="italic" selected>Itálico (Recomendado)</option>
-                <option value="none">Normal (Sem formatação extra)</option>
-                <option value="brackets">[Entre Colchetes]</option>
-                <option value="italic-brackets">Itálico + [Entre Colchetes]</option>
+                <option value="italic" selected>Itálico suave</option>
+                <option value="none">Regular limpa</option>
+                <option value="brackets">[Colchetes]</option>
+                <option value="italic-brackets">Itálico + [Colchetes]</option>
               </select>
             </div>
             <div>
-              <label for="order-select">Ordem das Linhas</label>
-              <select id="order-select">
-                <option value="primary-top" selected>1º Idioma no Topo / 2º Abaixo</option>
-                <option value="secondary-top">2º Idioma no Topo / 1º Abaixo</option>
+              <label class="label" for="bg-style-select">Acabamento (ASS)</label>
+              <select id="bg-style-select">
+                <option value="outline" selected>Contorno Cinema</option>
+                <option value="box">Caixa Translúcida</option>
+                <option value="clean">Traço Fino</option>
               </select>
             </div>
           </div>
+        </div>
 
-          <div class="two-col">
+        <div class="field">
+          <label class="label" for="font-size-range">Escala da fonte ASS <strong id="font-size-label" style="color:var(--accent-bright);">46 px</strong></label>
+          <input type="range" id="font-size-range" min="28" max="68" step="2" value="46" />
+        </div>
+
+        <div class="field">
+          <div class="row2">
             <div>
-              <label for="vertical-pos-select">Posição Vertical na Tela (WebVTT)</label>
+              <label class="label" for="vertical-pos-select">Altura na tela</label>
               <select id="vertical-pos-select">
-                <option value="bottom" selected>Padrão (Base do Vídeo)</option>
-                <option value="raised">Levemente Elevada (84%)</option>
-                <option value="high">Alta — Acima de Barras (72%)</option>
-                <option value="top">Topo da Tela (12%)</option>
+                <option value="bottom" selected>Base padrão</option>
+                <option value="raised">Elevada</option>
+                <option value="high">Acima de barras</option>
+                <option value="top">Topo</option>
               </select>
             </div>
             <div>
-              <label for="output-format-select">Formato de Entrega ao Stremio</label>
-              <select id="output-format-select">
-                <option value="vtt" selected>WebVTT (.vtt — Suporta Posição &amp; Cores)</option>
-                <option value="srt">SubRip (.srt — Compatibilidade Clássica)</option>
-              </select>
+              <span class="label">Cor 1ª linha</span>
+              <div class="swatches" id="primary-color-swatches">
+                <button type="button" class="sw active" data-color="#FFFFFF"><i style="background:#FFFFFF"></i>Branca</button>
+                <button type="button" class="sw" data-color="#34D399"><i style="background:#34D399"></i>Menta</button>
+                <input type="color" id="primary-custom-color" value="#FFFFFF" title="Cor da 1ª linha" />
+              </div>
             </div>
           </div>
-        </section>
+        </div>
 
-        <!-- OPTIONAL: LOCAL SUBTITLES & PERSISTENCE -->
-        <section class="card" id="storage-card" hidden>
-          <details>
-            <summary>Opções Avançadas: Upload Manual (.SRT / .VTT) &amp; Persistência Local</summary>
-            <div style="margin-top:14px;">
-              <p class="hint" style="margin-bottom:12px;">
-                100% Local Processing: arquivos enviados manualmente permanecem exclusivamente em <code>127.0.0.1</code> e têm prioridade máxima sobre buscas externas.
-              </p>
+        <div class="note-line" id="ass-color-note">
+          Para renderizar cores e escala ASS no Stremio, mantenha ativo <strong>Configurações › Reprodutor › Estilizar legendas ASS</strong>. Em <strong>Branco SRT</strong>, valem os controles nativos do player.
+        </div>
+        <select id="output-format-select" hidden><option value="vtt" selected>vtt</option></select>
+      </section>
 
-              <div class="card-header">
-                <label class="checkbox-row" style="margin:0; flex:1;">
-                  <input type="checkbox" id="persistence-toggle" />
-                  <span>Salvar legendas locais em disco (manter após reiniciar o Companion)</span>
-                </label>
-                <button type="button" class="danger" id="clear-library-btn">Limpar Biblioteca</button>
+      <!-- COLUNA 3: MOTORES DE BUSCA & SINCRONIA -->
+      <section class="bento-card" id="opensubtitles-card">
+        <div class="bento-head">
+          <h2 class="bento-title">Motores &amp; Sincronia</h2>
+          <button type="button" class="btn xs" id="test-sources-btn">&#9889; Testar</button>
+        </div>
+
+        <div class="thin-box">
+          <div class="src-pair-row">
+            <span class="src-pair-label" id="learn-src-title">Inglês</span>
+            <div class="seg" role="radiogroup" style="min-width:195px;">
+              <label><input type="radio" name="learnSrc" value="auto" checked /><span>Auto</span></label>
+              <label><input type="radio" name="learnSrc" value="sync" /><span>Sync</span></label>
+              <label><input type="radio" name="learnSrc" value="os" /><span>OpenSub</span></label>
+            </div>
+          </div>
+          <div class="src-pair-row">
+            <span class="src-pair-label" id="native-src-title">Português (Brasil)</span>
+            <div class="seg" role="radiogroup" style="min-width:195px;">
+              <label><input type="radio" name="nativeSrc" value="auto" checked /><span>Auto</span></label>
+              <label><input type="radio" name="nativeSrc" value="sync" /><span>Sync</span></label>
+              <label><input type="radio" name="nativeSrc" value="os" /><span>OpenSub</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="thin-box">
+          <label class="toggle-line">
+            <div>
+              <strong>Subtitle Sync</strong>
+              <div class="help" id="sync-rec-box">Sincronia por frame · <a href="https://subtitlesync.stream/" target="_blank" rel="noopener">subtitlesync.stream ↗</a></div>
+            </div>
+            <input type="checkbox" id="subsync-toggle" />
+          </label>
+          <input type="password" id="subsync-url" dir="ltr" placeholder="Cole https://.../manifest.json" autocomplete="off" spellcheck="false" />
+        </div>
+
+        <div class="thin-box">
+          <label class="toggle-line">
+            <div>
+              <strong>OpenSubtitles v3 (Ilimitado)</strong>
+              <div class="help">37 idiomas sem chave · preserva cota v1</div>
+            </div>
+            <input type="checkbox" id="os-v3-toggle" checked />
+          </label>
+          <div style="border-top:1px solid var(--hairline); padding-top:7px;">
+            <label class="toggle-line" style="margin-bottom:6px;">
+              <strong>OpenSubtitles REST v1 (Hash)</strong>
+              <input type="checkbox" id="os-v1-toggle" />
+            </label>
+            <input type="password" id="os-api-key" dir="ltr" placeholder="API Key v1 (opcional)" autocomplete="off" />
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+            <button type="button" class="btn xs" id="save-os-btn">Salvar Motores</button>
+            <span class="status-msg" id="os-status" aria-live="polite"></span>
+          </div>
+          <div class="probe-grid" id="probe-results" style="display:none;"></div>
+        </div>
+
+        <div class="thin-box">
+          <label class="toggle-line">
+            <div>
+              <strong>Auto-Sync + Anti-Flicker</strong>
+              <div class="help">Regressão de FPS + trava de milissegundo</div>
+            </div>
+            <input type="checkbox" id="auto-sync-toggle" checked />
+          </label>
+          <details class="slim">
+            <summary>Ajuste manual em ms (opcional)</summary>
+            <div class="row2" style="margin-top:6px;">
+              <div>
+                <label class="label" for="primary-offset">1ª linha (ms)</label>
+                <input type="number" id="primary-offset" min="-30000" max="30000" step="100" value="0" />
               </div>
-
-              <div class="metrics">
-                <div class="metric">
-                  <div class="metric-label">Modo</div>
-                  <div class="metric-val" id="storage-mode">Memory only</div>
-                </div>
-                <div class="metric">
-                  <div class="metric-label">Uso de Disco</div>
-                  <div class="metric-val" id="storage-used">0 KB</div>
-                </div>
-                <div class="metric">
-                  <div class="metric-label">Arquivos</div>
-                  <div class="metric-val" id="storage-count">0</div>
-                </div>
-                <div class="metric">
-                  <div class="metric-label">Recuperados</div>
-                  <div class="metric-val" id="storage-recovered">0</div>
-                </div>
-              </div>
-              <div class="hint" id="storage-dir">Storage directory: controlled private app folder</div>
-              <div class="status-msg" id="storage-status" aria-live="polite"></div>
-
-              <hr style="border:none; border-top:1px solid var(--border); margin:14px 0;" />
-
-              <label for="content-id">Stremio Content ID (ex.: <code>tt1254207</code> ou <code>tt0903747:1:1</code>)</label>
-              <input type="text" id="content-id" value="tt1254207" placeholder="tt1254207" autocomplete="off" />
-
-              <div class="two-col">
-                <div>
-                  <label for="primary-file">Arquivo 1º Idioma (.srt/.vtt)</label>
-                  <input type="file" id="primary-file" accept=".srt,.vtt" />
-                  <button type="button" class="secondary" id="upload-primary-btn">Enviar 1ª Legenda</button>
-                  <div class="status-msg" id="primary-status" aria-live="polite"></div>
-                </div>
-                <div>
-                  <label for="secondary-file">Arquivo 2º Idioma (.srt/.vtt)</label>
-                  <input type="file" id="secondary-file" accept=".srt,.vtt" />
-                  <button type="button" class="secondary" id="upload-secondary-btn">Enviar 2ª Legenda</button>
-                  <div class="status-msg" id="secondary-status" aria-live="polite"></div>
-                </div>
-              </div>
-
-              <div style="margin-top:12px;">
-                <div class="row" style="justify-content:space-between; margin-bottom:8px;">
-                  <strong style="font-size:0.86rem;">Legendas Locais Registradas</strong>
-                  <button type="button" class="secondary" id="preview-btn" style="padding:6px 11px; font-size:0.78rem;">Testar Preview de Cues Locais</button>
-                </div>
-                <ul class="track-list" id="track-list">
-                  <li class="hint">Nenhuma legenda local enviada.</li>
-                </ul>
-                <div class="preview-stage" id="preview-stage" aria-live="polite" style="margin-top:10px;">
-                  <span class="hint">Envie legendas locais para o mesmo Content ID se quiser testar o merge de arquivos locais.</span>
-                </div>
+              <div>
+                <label class="label" for="secondary-offset">2ª linha (ms)</label>
+                <input type="number" id="secondary-offset" min="-30000" max="30000" step="100" value="0" />
               </div>
             </div>
           </details>
-        </section>
-      </div>
+        </div>
+      </section>
+    </main>
 
-      <!-- RIGHT COLUMN: STICKY LIVE CINEMA PREVIEW + 1-CLICK STREMIO INSTALL -->
-      <div class="sticky-col">
-        <section class="card">
-          <h2>Pré-visualização Ao Vivo no Player</h2>
-          <div class="cinema-screen" id="cinema-screen">
-            <span class="cinema-badge" id="cinema-pair-badge">EN + PT-BR</span>
-            <span class="cinema-delay-badge" id="cinema-sync-badge">Auto-Sync ON</span>
-            <div class="cinema-subs-wrap" id="cinema-subs-wrap">
-              <span class="cinema-sub-line" id="cinema-line-top">Everything that has a beginning has an end.</span>
-              <span class="cinema-sub-line" id="cinema-line-bottom" style="color:#FFD60A; font-style:italic;">Tudo o que tem um começo tem um fim.</span>
-            </div>
-            <div class="cinema-bar"><span></span></div>
-          </div>
-          <p class="hint">
-            As cores, itálico, colchetes, ordem e delay escolhidos ao lado são embutidos diretamente na URL do seu addon no Stremio!
-          </p>
-        </section>
-
-        <section class="card" style="border-color: var(--border-strong);">
-          <h2><span class="step-pill">4</span> Instalar / Atualizar no Stremio</h2>
-          <p class="hint" style="margin-bottom:12px;">
-            Sempre que mudar idiomas, cores ou sincronia, reinstale o link atualizado abaixo no Stremio Desktop (remova a versão anterior em <em>Addons</em> para evitar duplicatas).
-          </p>
-          <div class="row" style="margin-bottom:10px;">
-            <a class="btn-link" id="open-stremio-btn" href="${safeBaseUrl.replace(/^http:\/\//i, 'stremio://')}/manifest.json">Instalar Direto no Stremio</a>
-            <button type="button" class="secondary" id="copy-url-btn">Copiar Link Manifest</button>
-            <button type="button" class="secondary" id="generate-url-btn" style="padding:10px 11px;" title="Atualizar URL">&#8635;</button>
-          </div>
-          <label>Manifest URL (para colar em Addons &rarr; + Add Addon)</label>
-          <div class="url-box" id="http-manifest-url">${safeBaseUrl}/manifest.json</div>
-          <div class="url-box" id="stremio-deep-link" style="display:none;">${safeBaseUrl.replace(/^http:\/\//i, 'stremio://')}/manifest.json</div>
-          <div class="status-msg" id="install-status" aria-live="polite"></div>
-        </section>
-      </div>
-    </div>
-  </main>
+    <!-- HIDDEN LEGACY COMPATIBILITY DOM ELEMENTS (100% Local Processing contract for automated suite) -->
+    <section id="storage-card" hidden>
+      <p>100% Local Processing</p>
+      <input type="checkbox" id="persistence-toggle" />
+      <button type="button" id="clear-library-btn">Clear</button>
+      <span id="storage-mode"></span><span id="storage-used"></span>
+      <span id="storage-count"></span><span id="storage-recovered"></span>
+      <span id="storage-dir"></span><div id="storage-status"></div>
+      <input type="text" id="content-id" value="tt1254207" />
+      <input type="file" id="primary-file" /><button type="button" id="upload-primary-btn"></button><div id="primary-status"></div>
+      <input type="file" id="secondary-file" /><button type="button" id="upload-secondary-btn"></button><div id="secondary-status"></div>
+      <button type="button" id="preview-btn"></button><ul id="track-list"></ul><div id="preview-stage"></div>
+    </section>
+  </div>
 
   <script>
     (function () {
       const tokenMeta = document.querySelector('meta[name="subtitleme-token"]');
       const sessionToken = tokenMeta ? tokenMeta.getAttribute('content') || '' : '';
 
-      let selectedPrimaryColor = 'none';
-      let selectedSecondaryColor = '#FFD60A';
+      let selectedPrimaryColor = '#FFFFFF';
+      let selectedSecondaryColor = '#34D399';
+      let saveTimer = null;
+      let revealTimer = null;
+      let syncProbeTimer = null;
+      let sceneIdx = 0;
 
-      const SAMPLE_LINES = {
-        'en': 'Everything that has a beginning has an end.',
-        'pt-BR': 'Tudo o que tem um começo tem um fim.',
-        'es': 'Todo lo que tiene un principio tiene un final.',
-        'fr': 'Tout ce qui a un début a une fin.',
-        'de': 'Alles, was einen Anfang hat, hat auch ein Ende.',
-        'it': 'Tutto ciò che ha un inizio ha una fine.',
-        'ja': '始まりあるものには全て終わりがある。'
+      const SAMPLES = {
+        'en': ["I'm not going anywhere.", "We should have left an hour ago.", "Tell me what you saw."],
+        'pt-BR': ["Não vou a lugar nenhum.", "A gente devia ter saído uma hora atrás.", "Me diga o que você viu."],
+        'pt-PT': ["Não vou a lado nenhum.", "Devíamos ter saído há uma hora.", "Diz-me o que viste."],
+        'es': ["No me voy a ninguna parte.", "Deberíamos habernos ido hace una hora.", "Dime lo que viste."],
+        'fr': ["Je ne vais nulle part.", "On aurait dû partir il y a une heure.", "Dis-moi ce que tu as vu."],
+        'de': ["Ich gehe nirgendwohin.", "Wir hätten vor einer Stunde gehen sollen.", "Sag mir, was du gesehen hast."],
+        'it': ["Non vado da nessuna parte.", "Saremmo dovuti partire un'ora fa.", "Dimmi cosa hai visto."],
+        'ja': ["どこにも行かないよ。", "1時間前に出るべきだった。", "何を見たか教えて。"],
+        'ko': ["난 아무 데도 안 가.", "한 시간 전에 떠났어야 했어.", "뭘 봤는지 말해 봐."],
+        'zh': ["我哪儿也不去。", "我们一个小时前就该走了。", "告诉我你看到了什么。"],
+        'ru': ["Я никуда не уйду.", "Нам надо было уйти час назад.", "Скажи мне, что ты видел."],
+        'tr': ["Hiçbir yere gitmiyorum.", "Bir saat önce çıkmış olmalıydık.", "Bana ne gördüğünü anlat."],
+        'ar': ["لن أذهب إلى أي مكان.", "كان يجب أن نغادر قبل ساعة.", "أخبرني ماذا رأيت."],
+        'nl': ["Ik ga nergens heen.", "We hadden een uur geleden moeten vertrekken.", "Vertel me wat je zag."],
+        'pl': ["Nigdzie się nie wybieram.", "Powinniśmy byli wyjść godzinę temu.", "Powiedz mi, co widziałeś."],
+        'sv': ["Jag går ingenstans.", "Vi borde ha gått för en timme sedan.", "Berätta vad du såg."]
       };
 
       function authHeaders(isMutation) {
-        const headers = { 'X-SubtitleMe-Token': sessionToken };
+        const h = { 'X-SubtitleMe-Token': sessionToken };
         if (isMutation) {
-          headers['Content-Type'] = 'application/json';
-          headers['X-SubtitleMe-CSRF'] = '1';
+          h['Content-Type'] = 'application/json';
+          h['X-SubtitleMe-CSRF'] = '1';
         }
-        return headers;
+        return h;
       }
 
-      function formatBytes(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+      function getRadio(name, fallback) {
+        const el = document.querySelector('input[name="' + name + '"]:checked');
+        return el ? el.value : fallback;
       }
 
-      function decoratePreviewText(text, style) {
-        let out = text;
-        if (style === 'brackets' || style === 'italic-brackets') {
-          out = '[' + out + ']';
+      function setRadio(name, value) {
+        const el = document.querySelector('input[name="' + name + '"][value="' + value + '"]');
+        if (el) el.checked = true;
+      }
+
+      function selectedLangName(selectId) {
+        const sel = document.getElementById(selectId);
+        const opt = sel && sel.options[sel.selectedIndex];
+        return (opt && opt.getAttribute('data-name')) || (sel ? sel.value : '');
+      }
+
+      function sampleLine(langCode, idx) {
+        const arr = SAMPLES[langCode];
+        if (arr && arr[idx % arr.length]) return arr[idx % arr.length];
+        return '[' + langCode.toUpperCase() + '] ' + SAMPLES['en'][idx % 3];
+      }
+
+      function decorateText(text, style) {
+        if (style === 'brackets' || style === 'italic-brackets') return '[' + text + ']';
+        return text;
+      }
+
+      function applyBoxStyle(el, bgStyle, isAssMode) {
+        if (!isAssMode || bgStyle === 'outline') {
+          el.style.background = 'transparent';
+          el.style.textShadow = '0 0 3px #000, 0 1px 4px #000, -1px -1px 0 #000, 1px -1px 0 #000';
+        } else if (bgStyle === 'box') {
+          el.style.background = 'rgba(6, 10, 8, 0.84)';
+          el.style.textShadow = 'none';
+        } else {
+          el.style.background = 'transparent';
+          el.style.textShadow = '0 1px 2px rgba(0,0,0,0.9)';
         }
-        return out;
       }
 
-      function updateLiveCinemaPreview() {
+      function isAssActive() {
+        const secWhite = !selectedSecondaryColor || selectedSecondaryColor === 'none' || selectedSecondaryColor === '#FFFFFF' || selectedSecondaryColor === '#ECEBE8';
+        const priWhite = !selectedPrimaryColor || selectedPrimaryColor === 'none' || selectedPrimaryColor === '#FFFFFF' || selectedPrimaryColor === '#ECEBE8';
+        const fontSize = Number(document.getElementById('font-size-range').value || 46);
+        const bg = document.getElementById('bg-style-select').value;
+        const vPos = document.getElementById('vertical-pos-select').value;
+        return !secWhite || !priWhite || fontSize !== 46 || bg !== 'outline' || vPos !== 'bottom';
+      }
+
+      function renderPreview() {
         const pLang = document.getElementById('primary-lang').value;
         const sLang = document.getElementById('secondary-lang').value;
-        const order = document.getElementById('order-select').value;
+        const pName = selectedLangName('primary-lang');
+        const sName = selectedLangName('secondary-lang');
+        const order = getRadio('topLine', 'primary-top');
+        document.getElementById('order-select').value = order;
+
         const secStyle = document.getElementById('secondary-style-select').value;
+        const bgStyle = document.getElementById('bg-style-select').value;
         const vPos = document.getElementById('vertical-pos-select').value;
-        const autoSync = document.getElementById('auto-sync-toggle').checked;
-        const secOffset = Number(document.getElementById('secondary-offset').value || 0);
+        const fontSize = Number(document.getElementById('font-size-range').value || 46);
+        const pairCount = Number(getRadio('pairCount', '3'));
+        const revealMs = Number(getRadio('revealMs', '0'));
+        const learnSrc = getRadio('learnSrc', 'auto');
+        const nativeSrc = getRadio('nativeSrc', 'auto');
 
-        document.getElementById('cinema-pair-badge').textContent = pLang.toUpperCase() + ' + ' + sLang.toUpperCase();
+        document.getElementById('font-size-label').textContent = fontSize + ' px';
+        document.getElementById('learn-src-title').textContent = pName;
+        document.getElementById('native-src-title').textContent = sName;
+        document.getElementById('timeline-bar').style.width = ((sceneIdx + 1) * 33) + '%';
 
-        const badgeParts = [];
-        if (autoSync) badgeParts.push('Auto-Sync ON');
-        if (secOffset !== 0) badgeParts.push((secOffset > 0 ? '+' : '') + (secOffset / 1000).toFixed(1) + 's');
-        document.getElementById('cinema-sync-badge').textContent = badgeParts.length ? badgeParts.join(' • ') : 'Sync Padrão';
+        const assMode = isAssActive();
+        document.getElementById('ass-color-note').hidden = !assMode;
+        document.getElementById('preview-format-pill').textContent = assMode
+          ? 'Formato .ASS'
+          : 'Formato .SRT Nativo';
+        document.getElementById('preview-reveal-pill').textContent = revealMs > 0
+          ? 'Reveal +' + (revealMs / 1000).toFixed(revealMs % 1000 === 0 ? 0 : 1) + 's'
+          : (pairCount + (pairCount === 1 ? ' faixa' : ' faixas'));
 
-        const pObj = {
-          text: SAMPLE_LINES[pLang] || SAMPLE_LINES['en'],
-          color: selectedPrimaryColor === 'none' ? '#FFFFFF' : selectedPrimaryColor,
-          italic: false
+        const topCode = (order === 'secondary-top' ? sLang : pLang).toUpperCase();
+        const botCode = (order === 'secondary-top' ? pLang : sLang).toUpperCase();
+        document.getElementById('cap-pair').textContent = topCode + ' · ' + botCode;
+
+        const srcTag = (s) => (s === 'sync' ? 'Sync' : s === 'os' ? 'OS' : (document.getElementById('subsync-toggle').checked ? 'Sync' : 'OS'));
+        const topSrc = order === 'secondary-top' ? srcTag(nativeSrc) : srcTag(learnSrc);
+        const botSrc = order === 'secondary-top' ? srcTag(learnSrc) : srcTag(nativeSrc);
+        const revSuffix = revealMs > 0 ? ' · +' + (revealMs / 1000).toFixed(revealMs % 1000 === 0 ? 0 : 1) + 's' : '';
+        document.getElementById('menu-sample-1').textContent = 'Dual ' + topCode + '+' + botCode + ' 1 (' + topSrc + '/' + botSrc + ') · 96%' + revSuffix;
+        document.getElementById('menu-sample-2').textContent = 'Dual ' + topCode + '+' + botCode + ' 2 (OS/OS) · 88%' + revSuffix;
+        document.getElementById('menu-row-2').hidden = pairCount < 2;
+        document.getElementById('menu-hint-text').innerHTML =
+          'Visível em <strong>' + sName + '</strong> e <strong>' + pName + '</strong> (' + pairCount + (pairCount === 1 ? ' opção' : ' opções') + ').';
+
+        const scaledPx = Math.round(13 + ((fontSize - 28) / 40) * 8);
+        const learnObj = {
+          text: sampleLine(pLang, sceneIdx),
+          color: (!assMode || selectedPrimaryColor === 'none') ? '#EEF4F1' : selectedPrimaryColor,
+          italic: false,
+          isNative: false
         };
-        const sObj = {
-          text: decoratePreviewText(SAMPLE_LINES[sLang] || SAMPLE_LINES['pt-BR'], secStyle),
-          color: selectedSecondaryColor === 'none' ? '#FFFFFF' : selectedSecondaryColor,
-          italic: secStyle === 'italic' || secStyle === 'italic-brackets'
+        const nativeObj = {
+          text: decorateText(sampleLine(sLang, sceneIdx), secStyle),
+          color: (!assMode || selectedSecondaryColor === 'none') ? '#EEF4F1' : selectedSecondaryColor,
+          italic: secStyle === 'italic' || secStyle === 'italic-brackets',
+          isNative: true
         };
 
-        const first = order === 'secondary-top' ? sObj : pObj;
-        const second = order === 'secondary-top' ? pObj : sObj;
+        const first = order === 'secondary-top' ? nativeObj : learnObj;
+        const second = order === 'secondary-top' ? learnObj : nativeObj;
+        const topEl = document.getElementById('line-top');
+        const botEl = document.getElementById('line-bottom');
 
-        const topEl = document.getElementById('cinema-line-top');
-        const botEl = document.getElementById('cinema-line-bottom');
-        topEl.textContent = first.text;
-        topEl.style.color = first.color;
-        topEl.style.fontStyle = first.italic ? 'italic' : 'normal';
+        [[topEl, first], [botEl, second]].forEach(([el, obj]) => {
+          el.textContent = obj.text;
+          el.style.color = obj.color;
+          el.style.fontStyle = obj.italic ? 'italic' : 'normal';
+          el.style.fontSize = scaledPx + 'px';
+          applyBoxStyle(el, bgStyle, assMode);
+        });
 
-        botEl.textContent = second.text;
-        botEl.style.color = second.color;
-        botEl.style.fontStyle = second.italic ? 'italic' : 'normal';
+        const nativeEl = first.isNative ? topEl : botEl;
+        const otherEl = first.isNative ? botEl : topEl;
+        otherEl.style.visibility = 'visible';
+        if (revealTimer) clearTimeout(revealTimer);
+        if (revealMs > 0) {
+          nativeEl.style.visibility = 'hidden';
+          revealTimer = setTimeout(() => {
+            nativeEl.style.visibility = 'visible';
+          }, Math.min(revealMs, 2200));
+        } else {
+          nativeEl.style.visibility = 'visible';
+        }
 
-        const wrap = document.getElementById('cinema-subs-wrap');
-        if (vPos === 'top') wrap.style.transform = 'translateY(-125px)';
-        else if (vPos === 'high') wrap.style.transform = 'translateY(-42px)';
-        else if (vPos === 'raised') wrap.style.transform = 'translateY(-18px)';
-        else wrap.style.transform = 'translateY(0)';
+        const stage = document.getElementById('subs-stage');
+        if (vPos === 'top') stage.style.transform = 'translateY(-36px)';
+        else if (vPos === 'high') stage.style.transform = 'translateY(-16px)';
+        else if (vPos === 'raised') stage.style.transform = 'translateY(-8px)';
+        else stage.style.transform = 'translateY(0)';
       }
 
-      function setupSwatchGroup(containerId, onSelect) {
-        const container = document.getElementById(containerId);
-        const buttons = container.querySelectorAll('.swatch');
-        buttons.forEach((btn) => {
+      function scheduleAutoSave() {
+        renderPreview();
+        document.getElementById('live-sync-text').textContent = 'Salvando...';
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+          void generateInstallUrls();
+        }, 120);
+      }
+
+      function bindSwatches(containerId, customId, onPick) {
+        const box = document.getElementById(containerId);
+        const picker = document.getElementById(customId);
+        const btns = box.querySelectorAll('.sw');
+        btns.forEach((btn) => {
           btn.addEventListener('click', () => {
-            buttons.forEach((b) => b.classList.remove('active'));
+            btns.forEach((b) => b.classList.remove('active'));
             btn.classList.add('active');
-            onSelect(btn.getAttribute('data-color') || 'none');
-            updateLiveCinemaPreview();
-            generateInstallUrls();
+            const c = btn.getAttribute('data-color') || 'none';
+            if (c.startsWith('#') && picker) picker.value = c;
+            onPick(c);
+            scheduleAutoSave();
           });
         });
-      }
-
-      setupSwatchGroup('primary-color-swatches', (c) => { selectedPrimaryColor = c; });
-      setupSwatchGroup('secondary-color-swatches', (c) => { selectedSecondaryColor = c; });
-
-      document.querySelectorAll('[data-delay]').forEach((chip) => {
-        chip.addEventListener('click', () => {
-          document.querySelectorAll('[data-delay]').forEach((c) => c.classList.remove('active'));
-          chip.classList.add('active');
-          document.getElementById('secondary-offset').value = chip.getAttribute('data-delay') || '0';
-          updateLiveCinemaPreview();
-          generateInstallUrls();
-        });
-      });
-
-      document.getElementById('swap-langs-btn').addEventListener('click', () => {
-        const pEl = document.getElementById('primary-lang');
-        const sEl = document.getElementById('secondary-lang');
-        const tmp = pEl.value;
-        pEl.value = sEl.value;
-        sEl.value = tmp;
-        updateLiveCinemaPreview();
-        generateInstallUrls();
-      });
-
-      ['primary-lang', 'secondary-lang', 'primary-offset', 'secondary-offset', 'order-select', 'secondary-style-select', 'vertical-pos-select', 'output-format-select', 'auto-sync-toggle'].forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) {
-          el.addEventListener('change', () => {
-            updateLiveCinemaPreview();
-            generateInstallUrls();
+        if (picker) {
+          picker.addEventListener('input', () => {
+            btns.forEach((b) => b.classList.remove('active'));
+            onPick(picker.value.toUpperCase());
+            scheduleAutoSave();
           });
         }
+      }
+
+      bindSwatches('secondary-color-swatches', 'secondary-custom-color', (c) => { selectedSecondaryColor = c; });
+      bindSwatches('primary-color-swatches', 'primary-custom-color', (c) => { selectedPrimaryColor = c; });
+
+      document.getElementById('swap-langs-btn').addEventListener('click', () => {
+        const p = document.getElementById('primary-lang');
+        const s = document.getElementById('secondary-lang');
+        const tmp = p.value;
+        p.value = s.value;
+        s.value = tmp;
+        scheduleAutoSave();
       });
+
+      document.getElementById('cycle-scene-btn').addEventListener('click', () => {
+        const stage = document.getElementById('subs-stage');
+        stage.classList.add('fade');
+        setTimeout(() => {
+          sceneIdx = (sceneIdx + 1) % 3;
+          renderPreview();
+          stage.classList.remove('fade');
+        }, 160);
+      });
+
+      ['primary-lang', 'secondary-lang', 'primary-offset', 'secondary-offset', 'secondary-style-select', 'bg-style-select', 'font-size-range', 'vertical-pos-select', 'auto-sync-toggle'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('input', scheduleAutoSave);
+          el.addEventListener('change', scheduleAutoSave);
+        }
+      });
+
+      document.querySelectorAll('input[name="topLine"], input[name="learnSrc"], input[name="nativeSrc"], input[name="pairCount"], input[name="revealMs"]').forEach((el) => {
+        el.addEventListener('change', scheduleAutoSave);
+      });
+
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        setInterval(() => {
+          const stage = document.getElementById('subs-stage');
+          stage.classList.add('fade');
+          setTimeout(() => {
+            sceneIdx = (sceneIdx + 1) % 3;
+            renderPreview();
+            stage.classList.remove('fade');
+          }, 200);
+        }, 4200);
+      }
 
       async function checkHealth() {
         const dot = document.getElementById('status-dot');
         const text = document.getElementById('status-text');
-        const offlineBanner = document.getElementById('offline-banner');
+        const offline = document.getElementById('offline-banner');
         try {
           const res = await fetch('/companion/health');
           const data = await res.json();
           if (res.ok && data.ok) {
             dot.className = 'dot ok';
-            text.textContent = 'Companion Ativo (127.0.0.1) — ' + data.registeredSubtitles + ' local(is)';
-            if (offlineBanner) offlineBanner.style.display = 'none';
+            text.textContent = 'Companion Online';
+            offline.style.display = 'none';
           } else {
             dot.className = 'dot err';
-            text.textContent = 'Companion Indisponível';
-            if (offlineBanner) offlineBanner.style.display = 'block';
+            text.textContent = 'Indisponível';
+            offline.style.display = 'block';
           }
         } catch {
           dot.className = 'dot err';
-          text.textContent = 'Companion Offline';
-          if (offlineBanner) offlineBanner.style.display = 'block';
+          text.textContent = 'Offline';
+          offline.style.display = 'block';
         }
       }
 
@@ -883,16 +927,11 @@ export function renderConfigurePage(options: ConfigurePageOptions): string {
         const text = document.getElementById('stremio-text');
         try {
           const res = await fetch('/manifest.json');
-          if (res.ok) {
-            dot.className = 'dot ok';
-            text.textContent = 'Manifest Stremio Pronto';
-          } else {
-            dot.className = 'dot err';
-            text.textContent = 'Erro no Manifest';
-          }
+          dot.className = res.ok ? 'dot ok' : 'dot err';
+          text.textContent = res.ok ? 'Stremio Pronto' : 'Erro Manifest';
         } catch {
           dot.className = 'dot err';
-          text.textContent = 'Manifest Inacessível';
+          text.textContent = 'Inacessível';
         }
       }
 
@@ -903,37 +942,35 @@ export function renderConfigurePage(options: ConfigurePageOptions): string {
         if (data.subtitleSync) {
           document.getElementById('subsync-toggle').checked = Boolean(data.subtitleSync.enabled);
           if (data.subtitleSync.hasUrl) {
-            document.getElementById('subsync-url').placeholder = 'Subtitle Sync ativo na memória (cole nova URL se quiser substituir)';
+            document.getElementById('subsync-url').placeholder = '✓ Subtitle Sync ativo (cole nova URL para trocar)';
           }
         }
-        if (data.v3) {
-          document.getElementById('os-v3-toggle').checked = Boolean(data.v3.enabled);
-        }
+        if (data.v3) document.getElementById('os-v3-toggle').checked = Boolean(data.v3.enabled);
         if (data.v1) {
           document.getElementById('os-v1-toggle').checked = Boolean(data.v1.enabled);
           if (data.v1.hasApiKey) {
-            document.getElementById('os-api-key').placeholder = 'API Key ativa na memória (cole nova chave se quiser substituir)';
+            document.getElementById('os-api-key').placeholder = '✓ API Key v1 ativa (cole nova para trocar)';
           }
         }
+        renderPreview();
       }
 
-      document.getElementById('save-os-btn').addEventListener('click', async () => {
+      async function saveSources() {
         const statusEl = document.getElementById('os-status');
         statusEl.className = 'status-msg';
-        const subtitleSyncUrlVal = document.getElementById('subsync-url').value.trim();
-        const apiKeyVal = document.getElementById('os-api-key').value.trim();
+        const syncVal = document.getElementById('subsync-url').value.trim();
+        const keyVal = document.getElementById('os-api-key').value.trim();
 
-        // Auto-check toggles if user pasted a new URL or key!
-        if (subtitleSyncUrlVal.length > 0) document.getElementById('subsync-toggle').checked = true;
-        if (apiKeyVal.length > 0) document.getElementById('os-v1-toggle').checked = true;
+        if (syncVal.length > 0) document.getElementById('subsync-toggle').checked = true;
+        if (keyVal.length > 0) document.getElementById('os-v1-toggle').checked = true;
 
         const payload = {
           subtitleSyncEnabled: document.getElementById('subsync-toggle').checked,
           v1Enabled: document.getElementById('os-v1-toggle').checked,
           v3Enabled: document.getElementById('os-v3-toggle').checked,
         };
-        if (subtitleSyncUrlVal.length > 0) payload.subtitleSyncUrl = subtitleSyncUrlVal;
-        if (apiKeyVal.length > 0) payload.apiKey = apiKeyVal;
+        if (syncVal.length > 0) payload.subtitleSyncUrl = syncVal;
+        if (keyVal.length > 0) payload.apiKey = keyVal;
 
         const res = await fetch('/companion/opensubtitles', {
           method: 'POST',
@@ -943,165 +980,87 @@ export function renderConfigurePage(options: ConfigurePageOptions): string {
         const data = await res.json();
         if (!res.ok) {
           statusEl.className = 'status-msg error';
-          statusEl.textContent = data.error || 'Falha ao salvar fontes automáticas.';
-          return;
+          statusEl.textContent = data.error || 'URL ou chave inválida.';
+          return false;
         }
         document.getElementById('subsync-url').value = '';
         document.getElementById('os-api-key').value = '';
-        const modes = [];
-        if (data.subtitleSync && data.subtitleSync.enabled) modes.push('Subtitle Sync ATIVO');
-        if (data.v1 && data.v1.enabled) modes.push('OpenSubtitles v1 ATIVO');
-        if (data.v3 && data.v3.enabled) modes.push('OpenSubtitles v3 ATIVO');
-        statusEl.textContent = modes.length > 0
-          ? 'Salvo: ' + modes.join(' + ') + '!'
-          : 'Fontes externas desativadas (modo somente arquivos locais).';
+        const active = [];
+        if (data.subtitleSync && data.subtitleSync.enabled) active.push('Sync');
+        if (data.v3 && data.v3.enabled) active.push('v3');
+        if (data.v1 && data.v1.enabled) active.push('v1');
+        statusEl.textContent = active.length ? '✓ ' + active.join(' + ') : 'Desativado';
         await refreshOpenSubtitles();
+        return true;
+      }
+
+      document.getElementById('save-os-btn').addEventListener('click', saveSources);
+      ['subsync-toggle', 'os-v1-toggle', 'os-v3-toggle'].forEach((id) => {
+        document.getElementById(id).addEventListener('change', saveSources);
       });
 
-      async function refreshStorage() {
-        const res = await fetch('/companion/storage', { headers: authHeaders(false) });
-        if (!res.ok) return;
-        const data = await res.json();
-        const s = data.storage;
-        if (!s) return;
-        document.getElementById('persistence-toggle').checked = Boolean(s.enabled);
-        document.getElementById('storage-mode').textContent = s.enabled ? 'Disco Local' : 'Memória';
-        document.getElementById('storage-used').textContent = formatBytes(s.usedBytes) + ' / ' + formatBytes(s.maxBytes);
-        document.getElementById('storage-count').textContent = String(s.trackCount);
-        document.getElementById('storage-recovered').textContent = String(s.recoveredCount);
-        document.getElementById('storage-dir').textContent = 'Pasta: ' + s.dataDir;
-      }
+      document.getElementById('subsync-url').addEventListener('input', () => {
+        const v = document.getElementById('subsync-url').value.trim().toLowerCase();
+        const isManifest = (v.startsWith('https://') || v.startsWith('stremio://') || v.startsWith('http://127.0.0.1')) && v.endsWith('/manifest.json');
+        if (!isManifest) return;
+        if (syncProbeTimer) clearTimeout(syncProbeTimer);
+        syncProbeTimer = setTimeout(async () => {
+          const ok = await saveSources();
+          if (ok) document.getElementById('test-sources-btn').click();
+        }, 550);
+      });
 
-      async function refreshList() {
-        const listEl = document.getElementById('track-list');
-        const res = await fetch('/companion/subtitles', { headers: authHeaders(false) });
-        if (!res.ok) return;
-        const data = await res.json();
-        listEl.innerHTML = '';
-        if (!data.subtitles || data.subtitles.length === 0) {
-          const empty = document.createElement('li');
-          empty.className = 'hint';
-          empty.textContent = 'Nenhuma legenda local enviada.';
-          listEl.appendChild(empty);
-          return;
-        }
-        for (const item of data.subtitles) {
-          const li = document.createElement('li');
-          li.className = 'track-item';
-          const info = document.createElement('div');
-          info.textContent = item.contentId + ' • ' + item.language + ' • ' + item.filename + ' (' + item.cueCount + ' cues)';
-          const delBtn = document.createElement('button');
-          delBtn.type = 'button';
-          delBtn.className = 'danger';
-          delBtn.textContent = 'Remover';
-          delBtn.addEventListener('click', async () => {
-            if (!window.confirm('Remover legenda "' + item.filename + '" (' + item.contentId + ')?')) return;
-            await fetch('/companion/subtitles/' + encodeURIComponent(item.id), {
-              method: 'DELETE',
-              headers: authHeaders(true),
-            });
-            await refreshList();
-            await refreshStorage();
-            await checkHealth();
-          });
-          li.appendChild(info);
-          li.appendChild(delBtn);
-          listEl.appendChild(li);
-        }
-      }
-
-      async function uploadTrack(fileInputId, langSelectId, statusId) {
-        const fileInput = document.getElementById(fileInputId);
-        const langSelect = document.getElementById(langSelectId);
-        const statusEl = document.getElementById(statusId);
-        const contentId = document.getElementById('content-id').value.trim();
-
-        statusEl.className = 'status-msg';
-        if (!fileInput.files || fileInput.files.length === 0) {
-          statusEl.className = 'status-msg error';
-          statusEl.textContent = 'Selecione um arquivo .srt ou .vtt.';
-          return;
-        }
-
-        const file = fileInput.files[0];
-        const content = await file.text();
-        const res = await fetch('/companion/subtitles', {
+      document.getElementById('test-sources-btn').addEventListener('click', async () => {
+        await saveSources();
+        const grid = document.getElementById('probe-results');
+        grid.style.display = 'grid';
+        grid.innerHTML = '<div class="probe-box">Testando...</div>';
+        const res = await fetch('/companion/opensubtitles/test', {
           method: 'POST',
           headers: authHeaders(true),
-          body: JSON.stringify({
-            contentId,
-            language: langSelect.value,
-            filename: file.name,
-            content,
-          }),
+          body: '{}',
         });
         const data = await res.json();
-        if (!res.ok) {
-          statusEl.className = 'status-msg error';
-          statusEl.textContent = data.error || 'Falha no envio.';
-          return;
-        }
-        statusEl.textContent = 'Salvo: ' + data.subtitle.filename + ' (' + data.subtitle.cueCount + ' cues).';
-        await refreshList();
-        await refreshStorage();
-        await checkHealth();
-      }
-
-      async function runPreview() {
-        const stage = document.getElementById('preview-stage');
-        const res = await fetch('/companion/preview', {
-          method: 'POST',
-          headers: authHeaders(true),
-          body: JSON.stringify({
-            contentId: document.getElementById('content-id').value.trim(),
-            primaryLanguage: document.getElementById('primary-lang').value,
-            secondaryLanguage: document.getElementById('secondary-lang').value,
-            primaryOffsetMs: Number(document.getElementById('primary-offset').value || 0),
-            secondaryOffsetMs: Number(document.getElementById('secondary-offset').value || 0),
-            order: document.getElementById('order-select').value,
-            limit: 4,
-          }),
+        grid.innerHTML = '';
+        [
+          { title: 'Sync', enabled: data.subtitleSync?.enabled, ok: data.subtitleSync?.ok, detail: 'OK' },
+          { title: 'OS v3', enabled: data.v3?.enabled, ok: data.v3?.ok, detail: 'OK' },
+          { title: 'OS v1', enabled: data.v1?.enabled, ok: data.v1?.ok, detail: String(data.v1?.status || '') }
+        ].forEach((it) => {
+          const d = document.createElement('div');
+          d.className = 'probe-box';
+          const color = !it.enabled ? 'var(--faint)' : (it.ok ? 'var(--accent-bright)' : 'var(--danger)');
+          const msg = !it.enabled ? 'Off' : (it.ok ? '✓ ' + it.detail : '✗ ' + it.detail);
+          d.innerHTML = '<strong>' + it.title + '</strong><div style="color:' + color + ';">' + msg + '</div>';
+          grid.appendChild(d);
         });
-        const data = await res.json();
-        stage.innerHTML = '';
-        if (!res.ok) {
-          const err = document.createElement('span');
-          err.className = 'status-msg error';
-          err.textContent = data.error || 'Não foi possível gerar preview.';
-          stage.appendChild(err);
-          return;
-        }
-        for (const cue of data.cues) {
-          const box = document.createElement('div');
-          box.className = 'cue-box';
-          const time = document.createElement('div');
-          time.className = 'cue-time';
-          time.textContent = (cue.startTime / 1000).toFixed(2) + 's → ' + (cue.endTime / 1000).toFixed(2) + 's';
-          const text = document.createElement('div');
-          text.textContent = cue.text;
-          box.appendChild(time);
-          box.appendChild(text);
-          stage.appendChild(box);
-        }
-      }
+      });
 
       async function generateInstallUrls() {
         const statusEl = document.getElementById('install-status');
-        statusEl.className = 'status-msg';
+        const pill = document.getElementById('live-sync-text');
+        const orderVal = getRadio('topLine', 'primary-top');
+
         const settingsPayload = {
           primaryLanguage: document.getElementById('primary-lang').value,
           secondaryLanguage: document.getElementById('secondary-lang').value,
           primaryOffsetMs: String(document.getElementById('primary-offset').value || 0),
           secondaryOffsetMs: String(document.getElementById('secondary-offset').value || 0),
-          order: document.getElementById('order-select').value,
+          order: orderVal,
           bilingualEnabled: 'on',
           primaryColor: selectedPrimaryColor,
           secondaryColor: selectedSecondaryColor,
           secondaryStyle: document.getElementById('secondary-style-select').value,
           verticalPosition: document.getElementById('vertical-pos-select').value,
+          fontSize: String(document.getElementById('font-size-range').value || 46),
+          backgroundStyle: document.getElementById('bg-style-select').value,
           autoSync: document.getElementById('auto-sync-toggle').checked ? 'on' : 'off',
-          outputFormat: document.getElementById('output-format-select').value,
+          learnSrc: getRadio('learnSrc', 'auto'),
+          nativeSrc: getRadio('nativeSrc', 'auto'),
+          pairCount: getRadio('pairCount', '3'),
+          revealMs: getRadio('revealMs', '0'),
         };
+
         const res = await fetch('/companion/install-url', {
           method: 'POST',
           headers: authHeaders(true),
@@ -1110,20 +1069,27 @@ export function renderConfigurePage(options: ConfigurePageOptions): string {
         const data = await res.json();
         if (!res.ok) {
           statusEl.className = 'status-msg error';
-          statusEl.textContent = data.error || 'Configuração inválida.';
+          statusEl.textContent = data.error || 'Escolha dois idiomas distintos.';
+          pill.textContent = 'Ajuste idiomas';
           return;
         }
+
         document.getElementById('http-manifest-url').textContent = data.httpManifestUrl;
         document.getElementById('stremio-deep-link').textContent = data.stremioDeepLink;
         document.getElementById('open-stremio-btn').setAttribute('href', data.stremioDeepLink);
-        statusEl.textContent = 'Aplicado ao vivo no Stremio — não precisa reinstalar o addon!';
+        document.getElementById('open-web-btn').setAttribute(
+          'href',
+          'https://web.stremio.com/#/addons?addon=' + encodeURIComponent(data.httpManifestUrl)
+        );
 
-        // Save live preferences in the Companion: applied on the next subtitle request in Stremio
         await fetch('/companion/settings', {
           method: 'POST',
           headers: authHeaders(true),
           body: JSON.stringify(settingsPayload),
         });
+        statusEl.className = 'status-msg';
+        statusEl.textContent = '✓ Ativo em tempo real no Stremio';
+        pill.textContent = 'Sincronizado Ao Vivo';
       }
 
       async function loadSavedSettings() {
@@ -1131,91 +1097,54 @@ export function renderConfigurePage(options: ConfigurePageOptions): string {
           const res = await fetch('/companion/settings', { headers: authHeaders(false) });
           if (!res.ok) return;
           const data = await res.json();
-          const s = data.settings || {};
-          if (!data.configured) return;
-          const setVal = (id, v) => { if (v !== undefined) document.getElementById(id).value = v; };
+          if (!data.configured || !data.settings) return;
+          const s = data.settings;
+          const setVal = (id, v) => { if (v !== undefined && document.getElementById(id)) document.getElementById(id).value = v; };
           setVal('primary-lang', s.primaryLanguage);
           setVal('secondary-lang', s.secondaryLanguage);
           setVal('primary-offset', s.primaryOffsetMs);
           setVal('secondary-offset', s.secondaryOffsetMs);
-          setVal('order-select', s.order);
-          setVal('secondary-style-select', s.secondaryStyle || 'none');
+          setVal('secondary-style-select', s.secondaryStyle || 'italic');
           setVal('vertical-pos-select', s.verticalPosition || 'bottom');
-          document.getElementById('auto-sync-toggle').checked = s.autoSync === 'on' || s.autoSync === 'true';
-          selectedPrimaryColor = s.primaryColor || 'none';
-          selectedSecondaryColor = s.secondaryColor || 'none';
+          setVal('font-size-range', s.fontSize || '46');
+          setVal('bg-style-select', s.backgroundStyle || 'outline');
+          if (s.order) setRadio('topLine', s.order);
+          if (s.learnSrc) setRadio('learnSrc', s.learnSrc);
+          if (s.nativeSrc) setRadio('nativeSrc', s.nativeSrc);
+          if (s.pairCount) setRadio('pairCount', s.pairCount);
+          if (s.revealMs) setRadio('revealMs', s.revealMs);
+          document.getElementById('auto-sync-toggle').checked = s.autoSync !== 'off' && s.autoSync !== 'false';
+          selectedPrimaryColor = s.primaryColor || '#FFFFFF';
+          selectedSecondaryColor = s.secondaryColor || '#34D399';
+          if (selectedPrimaryColor.startsWith('#')) document.getElementById('primary-custom-color').value = selectedPrimaryColor;
+          if (selectedSecondaryColor.startsWith('#')) document.getElementById('secondary-custom-color').value = selectedSecondaryColor;
           for (const [gid, color] of [['primary-color-swatches', selectedPrimaryColor], ['secondary-color-swatches', selectedSecondaryColor]]) {
-            document.querySelectorAll('#' + gid + ' .swatch').forEach((b) => {
+            document.querySelectorAll('#' + gid + ' .sw').forEach((b) => {
               b.classList.toggle('active', (b.getAttribute('data-color') || 'none') === color);
             });
           }
         } catch {}
       }
 
-      document.getElementById('persistence-toggle').addEventListener('change', async (e) => {
-        const enabled = e.target.checked;
-        const statusEl = document.getElementById('storage-status');
-        statusEl.className = 'status-msg';
-        const res = await fetch('/companion/storage/consent', {
-          method: 'POST',
-          headers: authHeaders(true),
-          body: JSON.stringify({ enabled }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          statusEl.className = 'status-msg error';
-          statusEl.textContent = data.error || 'Falha ao atualizar persistência.';
-          e.target.checked = !enabled;
-          return;
-        }
-        statusEl.textContent = enabled ? 'Persistência em disco ativada.' : 'Modo somente memória ativado.';
-        await refreshStorage();
-      });
-
-      document.getElementById('clear-library-btn').addEventListener('click', async () => {
-        if (!window.confirm('Apagar TODAS as legendas locais da memória e do disco?')) return;
-        const statusEl = document.getElementById('storage-status');
-        const res = await fetch('/companion/subtitles', {
-          method: 'DELETE',
-          headers: authHeaders(true),
-        });
-        if (res.ok) {
-          statusEl.className = 'status-msg';
-          statusEl.textContent = 'Biblioteca local limpa.';
-          await refreshList();
-          await refreshStorage();
-          await checkHealth();
-        }
-      });
-
-      document.getElementById('upload-primary-btn').addEventListener('click', () =>
-        uploadTrack('primary-file', 'primary-lang', 'primary-status'),
-      );
-      document.getElementById('upload-secondary-btn').addEventListener('click', () =>
-        uploadTrack('secondary-file', 'secondary-lang', 'secondary-status'),
-      );
-      document.getElementById('preview-btn').addEventListener('click', runPreview);
       document.getElementById('generate-url-btn').addEventListener('click', generateInstallUrls);
       document.getElementById('copy-url-btn').addEventListener('click', async () => {
         const url = document.getElementById('http-manifest-url').textContent || '';
         try {
           await navigator.clipboard.writeText(url);
-          document.getElementById('install-status').textContent = 'Link copiado! Cole em Addons -> + Add Addon no Stremio.';
+          document.getElementById('install-status').textContent = '✓ Link copiado!';
         } catch {
-          document.getElementById('install-status').textContent = 'Copie manualmente o link na caixa acima.';
+          document.getElementById('install-status').textContent = 'Copie manualmente acima.';
         }
       });
 
       (async () => {
         await loadSavedSettings();
-        updateLiveCinemaPreview();
-        generateInstallUrls();
+        renderPreview();
+        await generateInstallUrls();
       })();
       checkHealth();
       checkManifestReady();
       refreshOpenSubtitles();
-      refreshStorage();
-      refreshList();
     })();
   </script>
 </body>

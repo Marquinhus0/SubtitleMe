@@ -33,6 +33,7 @@ export interface CompanionRoutesDeps {
   readonly subtitleSyncAddon?: SubtitleSyncAddonProvider;
   readonly settingsStore?: RuntimeSettingsStore;
   readonly persistenceEnabled?: () => boolean;
+  readonly onSaveProviders?: () => void;
   readonly maxSubtitleBytes?: number;
   readonly maxJsonBodyBytes?: number;
 }
@@ -303,6 +304,8 @@ export function handleCompanionRoutes(
         deps.openSubtitlesV3.setEnabled(payload.v3Enabled);
       }
 
+      deps.onSaveProviders?.();
+
       sendJson(res, 200, {
         subtitleSync: {
           enabled: deps.subtitleSyncAddon?.isEnabled() ?? false,
@@ -318,6 +321,42 @@ export function handleCompanionRoutes(
         },
       });
     });
+    return true;
+  }
+
+  // POST /companion/opensubtitles/test — live connectivity check for Subtitle Sync & OpenSubtitles v1/v3
+  if (req.method === 'POST' && urlPath === '/companion/opensubtitles/test') {
+    const authResult = deps.auth.authorizeRequest(req, true);
+    if (!authResult.authorized) {
+      sendJson(res, authResult.statusCode, { error: authResult.reason });
+      return true;
+    }
+
+    void (async () => {
+      const [subSyncProbe, osV1Probe] = await Promise.all([
+        deps.subtitleSyncAddon?.isEnabled()
+          ? deps.subtitleSyncAddon.probeManifest()
+          : Promise.resolve({ ok: false }),
+        deps.openSubtitlesV1?.isEnabled()
+          ? deps.openSubtitlesV1.probeConnection()
+          : Promise.resolve({ ok: false, status: 'DISABLED' }),
+      ]);
+
+      sendJson(res, 200, {
+        subtitleSync: {
+          enabled: deps.subtitleSyncAddon?.isEnabled() ?? false,
+          ...subSyncProbe,
+        },
+        v1: {
+          enabled: deps.openSubtitlesV1?.isEnabled() ?? false,
+          ...osV1Probe,
+        },
+        v3: {
+          enabled: deps.openSubtitlesV3?.isEnabled() ?? false,
+          ok: deps.openSubtitlesV3?.isEnabled() ?? false,
+        },
+      });
+    })();
     return true;
   }
 

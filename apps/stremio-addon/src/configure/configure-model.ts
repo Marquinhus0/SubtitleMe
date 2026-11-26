@@ -35,11 +35,29 @@ export function serializeStremioConfigForUrl(config: StremioAddonConfig): string
   if (config.verticalPosition && config.verticalPosition !== 'bottom') {
     payload.verticalPosition = config.verticalPosition;
   }
+  if (config.fontSize !== undefined && config.fontSize !== 46) {
+    payload.fontSize = String(config.fontSize);
+  }
+  if (config.backgroundStyle && config.backgroundStyle !== 'outline') {
+    payload.backgroundStyle = config.backgroundStyle;
+  }
   if (config.autoSync) {
     payload.autoSync = 'on';
   }
   if (config.outputFormat && config.outputFormat !== 'vtt') {
     payload.outputFormat = config.outputFormat;
+  }
+  if (config.learnSrc && config.learnSrc !== 'auto') {
+    payload.learnSrc = config.learnSrc;
+  }
+  if (config.nativeSrc && config.nativeSrc !== 'auto') {
+    payload.nativeSrc = config.nativeSrc;
+  }
+  if (config.pairCount !== undefined) {
+    payload.pairCount = String(config.pairCount);
+  }
+  if (config.revealMs !== undefined && config.revealMs > 0) {
+    payload.revealMs = String(config.revealMs);
   }
   return encodeURIComponent(JSON.stringify(payload));
 }

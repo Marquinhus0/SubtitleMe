@@ -29,6 +29,7 @@ export interface SubtitleDiscoveryCandidate {
     readonly downloadCount?: number;
     readonly releaseScore?: number;
     readonly moviehashMatch?: boolean;
+    readonly syncedByAddon?: boolean;
   };
   /** Lazy loader to fetch/materialize raw subtitle bytes only after matching selects this candidate. */
   loadAsset(): Promise<RawSubtitleAsset | null>;

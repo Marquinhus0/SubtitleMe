@@ -7,6 +7,8 @@ import {
   type SecondarySubtitleStyle,
   type StremioAddonConfig,
   type StremioOutputFormat,
+  type SubtitleBackgroundStyle,
+  type SubtitleSourcePreference,
   type VerticalSubtitlePosition,
 } from './addon-config';
 
@@ -29,6 +31,9 @@ const VALID_VERTICAL_POSITIONS = new Set<VerticalSubtitlePosition>([
   'high',
   'top',
 ]);
+
+const VALID_BACKGROUND_STYLES = new Set<SubtitleBackgroundStyle>(['outline', 'box', 'clean']);
+const VALID_SOURCE_PREFS = new Set<SubtitleSourcePreference>(['auto', 'sync', 'os']);
 
 const ALLOWED_COLORS_UPPER = new Set<string>(
   ALLOWED_SUBTITLE_COLORS.map((c) => c.toUpperCase()),
@@ -140,6 +145,9 @@ export function validateAddonConfig(
     } else {
       errors.push(`Invalid order: "${rawConfig.order}". Expected "primary-top" or "secondary-top".`);
     }
+  } else if (rawConfig.top !== undefined && rawConfig.top.trim() !== '') {
+    if (rawConfig.top === 'learn') order = 'primary-top';
+    else if (rawConfig.top === 'native') order = 'secondary-top';
   }
 
   const rawEnabled = rawConfig.bilingualEnabled;
@@ -198,6 +206,68 @@ export function validateAddonConfig(
   const autoSync =
     rawConfig.autoSync !== undefined ? parseOptionalBoolean(rawConfig.autoSync, false) : undefined;
 
+  let fontSize: number | undefined;
+  if (rawConfig.fontSize !== undefined && rawConfig.fontSize.trim() !== '') {
+    const parsedSize = Number(rawConfig.fontSize);
+    if (!Number.isFinite(parsedSize) || parsedSize < 24 || parsedSize > 80) {
+      errors.push('fontSize must be between 24 and 80.');
+    } else {
+      fontSize = Math.round(parsedSize);
+    }
+  }
+
+  let backgroundStyle: SubtitleBackgroundStyle | undefined;
+  if (rawConfig.backgroundStyle !== undefined && rawConfig.backgroundStyle.trim() !== '') {
+    const candidate = rawConfig.backgroundStyle.trim() as SubtitleBackgroundStyle;
+    if (VALID_BACKGROUND_STYLES.has(candidate)) {
+      backgroundStyle = candidate;
+    } else {
+      errors.push(`Invalid backgroundStyle: "${rawConfig.backgroundStyle}".`);
+    }
+  }
+
+  let learnSrc: SubtitleSourcePreference | undefined;
+  if (rawConfig.learnSrc !== undefined && rawConfig.learnSrc.trim() !== '') {
+    const candidate = rawConfig.learnSrc.trim().toLowerCase() as SubtitleSourcePreference;
+    if (VALID_SOURCE_PREFS.has(candidate)) {
+      learnSrc = candidate;
+    } else {
+      errors.push(`Invalid learnSrc: "${rawConfig.learnSrc}". Expected "auto", "sync" or "os".`);
+    }
+  }
+
+  let nativeSrc: SubtitleSourcePreference | undefined;
+  if (rawConfig.nativeSrc !== undefined && rawConfig.nativeSrc.trim() !== '') {
+    const candidate = rawConfig.nativeSrc.trim().toLowerCase() as SubtitleSourcePreference;
+    if (VALID_SOURCE_PREFS.has(candidate)) {
+      nativeSrc = candidate;
+    } else {
+      errors.push(`Invalid nativeSrc: "${rawConfig.nativeSrc}". Expected "auto", "sync" or "os".`);
+    }
+  }
+
+  let pairCount: number | undefined;
+  const rawPairCount = rawConfig.pairCount ?? rawConfig.count;
+  if (rawPairCount !== undefined && rawPairCount.trim() !== '') {
+    const parsedCount = Number(rawPairCount);
+    if (!Number.isFinite(parsedCount) || parsedCount < 1 || parsedCount > 5) {
+      errors.push('pairCount must be an integer between 1 and 5.');
+    } else {
+      pairCount = Math.round(parsedCount);
+    }
+  }
+
+  let revealMs: number | undefined;
+  const rawReveal = rawConfig.revealMs ?? rawConfig.reveal;
+  if (rawReveal !== undefined && rawReveal.trim() !== '') {
+    const parsedReveal = Number(rawReveal);
+    if (!Number.isFinite(parsedReveal) || parsedReveal < 0 || parsedReveal > 5000) {
+      errors.push('revealMs must be between 0 and 5000 ms.');
+    } else {
+      revealMs = Math.round(parsedReveal);
+    }
+  }
+
   return {
     valid: errors.length === 0,
     config: {
@@ -211,8 +281,14 @@ export function validateAddonConfig(
       ...(secondaryColor !== undefined ? { secondaryColor } : {}),
       ...(secondaryStyle !== undefined ? { secondaryStyle } : {}),
       ...(verticalPosition !== undefined ? { verticalPosition } : {}),
+      ...(fontSize !== undefined ? { fontSize } : {}),
+      ...(backgroundStyle !== undefined ? { backgroundStyle } : {}),
       ...(autoSync !== undefined ? { autoSync } : {}),
       ...(outputFormat !== undefined ? { outputFormat } : {}),
+      ...(learnSrc !== undefined ? { learnSrc } : {}),
+      ...(nativeSrc !== undefined ? { nativeSrc } : {}),
+      ...(pairCount !== undefined ? { pairCount } : {}),
+      ...(revealMs !== undefined ? { revealMs } : {}),
     },
     errors,
   };

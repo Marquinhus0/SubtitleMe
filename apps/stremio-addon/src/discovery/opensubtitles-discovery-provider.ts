@@ -42,11 +42,9 @@ interface CachedExternalAsset {
 }
 
 function mapBcp47ToOpenSubtitlesLang(bcp47: string): string | null {
-  const lower = bcp47.trim().toLowerCase();
-  if (lower === 'pt-br') return 'pt-br';
   const desc = findLanguageDescriptor(bcp47);
   if (!desc) return null;
-  return desc.bcp47.toLowerCase();
+  return desc.openSubtitlesV1Code ?? desc.bcp47.toLowerCase();
 }
 
 function detectSubtitleFormat(content: string, fileName?: string): SubtitleFormat {
@@ -117,6 +115,24 @@ export class OpenSubtitlesDiscoveryProvider implements SubtitleDiscoveryProvider
 
   public hasApiKey(): boolean {
     return this.apiKey.length > 0;
+  }
+
+  /** Internal helper for private local persistence only — never exposed in HTTP responses. */
+  public getApiKeyForPersistence(): string {
+    return this.apiKey;
+  }
+
+  public async probeConnection(): Promise<{ ok: boolean; status: number | string }> {
+    if (!this.apiKey) return { ok: false, status: 'MISSING_API_KEY' };
+    try {
+      const res = await this.fetchWithTimeoutAndRetry(
+        `${this.baseUrl}/subtitles?imdb_id=0133093&languages=en`,
+        { method: 'GET', headers: this.buildHeaders() },
+      );
+      return { ok: res.ok, status: res.status };
+    } catch {
+      return { ok: false, status: 'NETWORK_ERROR' };
+    }
   }
 
   /**

@@ -1,4 +1,5 @@
 import http, { type Server } from 'node:http';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import stremioSdk from 'stremio-addon-sdk';
 const { addonBuilder, getRouter } = stremioSdk;
 import { createAddonManifest } from '../addon/manifest';
@@ -118,8 +119,49 @@ export async function startStremioAddonServer(
   const builder = new addonBuilder(manifest);
 
   const settingsStore = new RuntimeSettingsStore(join(persistence.getDataDir(), 'settings.json'));
+  const providersFilePath = join(persistence.getDataDir(), 'providers.json');
+
+  const saveProvidersToDisk = () => {
+    if (!persistence.isEnabled()) return;
+    try {
+      mkdirSync(persistence.getDataDir(), { recursive: true, mode: 0o700 });
+      const data = {
+        subtitleSyncEnabled: subtitleSyncAddon.isEnabled(),
+        subtitleSyncUrl: subtitleSyncAddon.getManifestUrlForPersistence() ?? '',
+        v1Enabled: openSubtitlesV1.isEnabled(),
+        v1ApiKey: openSubtitlesV1.getApiKeyForPersistence(),
+        v3Enabled: openSubtitlesV3.isEnabled(),
+      };
+      writeFileSync(providersFilePath, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 });
+    } catch {
+      // Non-fatal
+    }
+  };
+
   if (persistence.isEnabled()) {
     settingsStore.load();
+    if (existsSync(providersFilePath)) {
+      try {
+        const saved = JSON.parse(readFileSync(providersFilePath, 'utf-8')) as Record<string, unknown>;
+        if (!options.subtitleSyncOptions && typeof saved.subtitleSyncUrl === 'string' && saved.subtitleSyncUrl) {
+          subtitleSyncAddon.configure({
+            enabled: saved.subtitleSyncEnabled === true,
+            manifestUrl: saved.subtitleSyncUrl,
+          });
+        }
+        if (!options.openSubtitlesOptions && typeof saved.v1ApiKey === 'string' && saved.v1ApiKey) {
+          openSubtitlesV1.configure({
+            enabled: saved.v1Enabled === true,
+            apiKey: saved.v1ApiKey,
+          });
+        }
+        if (!options.openSubtitlesV3Options && typeof saved.v3Enabled === 'boolean') {
+          openSubtitlesV3.setEnabled(saved.v3Enabled);
+        }
+      } catch {
+        // Ignore corrupted providers.json
+      }
+    }
   }
 
   builder.defineSubtitlesHandler(async (args) => {
@@ -156,6 +198,7 @@ export async function startStremioAddonServer(
           subtitleSyncAddon,
           settingsStore,
           persistenceEnabled: () => persistence.isEnabled(),
+          onSaveProviders: saveProvidersToDisk,
         },
       })
     ) {

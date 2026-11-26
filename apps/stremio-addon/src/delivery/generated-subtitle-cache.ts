@@ -8,6 +8,7 @@ export interface CachedVttEntry {
   fingerprint: string;
   sourceIds: readonly string[];
   cueCount: number;
+  syncPercent?: number;
 }
 
 export interface GeneratedSubtitleCacheOptions {
@@ -22,6 +23,7 @@ export interface CacheEntryMetadata {
   fingerprint?: string;
   sourceIds?: readonly string[];
   cueCount?: number;
+  syncPercent?: number;
 }
 
 /**
@@ -129,6 +131,7 @@ export class GeneratedSubtitleCache {
       fingerprint,
       sourceIds,
       cueCount,
+      ...(metadata.syncPercent !== undefined ? { syncPercent: metadata.syncPercent } : {}),
     };
 
     this.entries.set(token, entry);

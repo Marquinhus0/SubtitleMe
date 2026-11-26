@@ -1,5 +1,5 @@
 import type { SubtitleFormat } from '@subtitleme/shared-types';
-import { findLanguageDescriptor } from '../config/addon-config';
+import { findLanguageDescriptor, getAcceptedStremioCodes } from '../config/addon-config';
 import { MAX_SOURCE_SUBTITLE_BYTES } from '../delivery/subtitle-file-service';
 import type { RawSubtitleAsset } from '../sources/subtitle-source.interface';
 import type { StremioContentIdentity } from './content-identifier';
@@ -30,16 +30,6 @@ interface StremioV3SubtitleEntry {
   subtitleFileName?: string;
   movieReleaseName?: string;
 }
-
-const BCP47_TO_V3_LANGS: Record<string, readonly string[]> = {
-  en: ['eng', 'en'],
-  'pt-br': ['pob', 'pb', 'pt-br', 'por', 'pt'],
-  es: ['spa', 'spn', 'es'],
-  fr: ['fre', 'fra', 'fr'],
-  de: ['ger', 'deu', 'de'],
-  it: ['ita', 'it'],
-  ja: ['jpn', 'ja'],
-};
 
 function detectFormat(content: string, urlOrName?: string): SubtitleFormat {
   if (/^\uFEFF?WEBVTT(?:[ \t].*)?(?:\r?\n|$)/.test(content.trimStart())) {
@@ -108,10 +98,10 @@ export class StremioOpenSubtitlesV3Provider implements SubtitleDiscoveryProvider
     }
 
     const langDesc = findLanguageDescriptor(language);
-    const acceptedCodes = BCP47_TO_V3_LANGS[language.trim().toLowerCase()];
-    if (!langDesc || !acceptedCodes) {
+    if (!langDesc) {
       return [];
     }
+    const acceptedCodes = getAcceptedStremioCodes(langDesc);
 
     // Preserve literal ':' in series episode IDs (e.g. tt0903747:1:2) as expected by opensubtitles-v3.strem.io
     const pathId = identity.canonicalId

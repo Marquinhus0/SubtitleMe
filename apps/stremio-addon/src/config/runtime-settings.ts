@@ -12,8 +12,14 @@ const ALLOWED_KEYS = [
   'secondaryColor',
   'secondaryStyle',
   'verticalPosition',
+  'fontSize',
+  'backgroundStyle',
   'autoSync',
   'outputFormat',
+  'learnSrc',
+  'nativeSrc',
+  'pairCount',
+  'revealMs',
 ] as const;
 
 /**

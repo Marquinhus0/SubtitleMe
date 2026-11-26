@@ -66,8 +66,11 @@ export {
   DEFAULT_ADDON_CONFIG,
   STREMIO_SUPPORTED_LANGUAGES,
   findLanguageDescriptor,
+  getAcceptedStremioCodes,
+  getPrimaryStremioMenuLang,
   type StremioAddonConfig,
   type StremioLanguageDescriptor,
+  type SubtitleSourcePreference,
 } from './config/addon-config';
 export { validateAddonConfig, type ConfigValidationResult } from './config/config-validator';
 export {
@@ -87,6 +90,7 @@ export {
   MAX_SOURCE_SUBTITLE_BYTES,
   OPAQUE_TOKEN_REGEX,
   SubtitleFileService,
+  splitSecondaryCuesForReveal,
   type GeneratedSubtitleDelivery,
 } from './delivery/subtitle-file-service';
 export {
@@ -141,13 +145,20 @@ export {
   type SubtitleSyncProviderOptions,
 } from './discovery/subtitle-sync-provider';
 export { computeReleaseSimilarity } from './discovery/release-similarity';
-export { alignSecondaryCuesToPrimary, type AutoSyncAlignmentResult } from './delivery/auto-sync';
 export {
+  alignSecondaryCuesToPrimary,
+  computeCueSyncPercent,
+  type AutoSyncAlignmentResult,
+} from './delivery/auto-sync';
+export {
+  filterCandidatesBySourcePreference,
   matchBilingualPair,
   selectBestCandidate,
+  selectRankedCandidatePairs,
   type BilingualMatchIncomplete,
   type BilingualMatchResult,
   type BilingualMatchSuccess,
+  type RankedCandidatePair,
 } from './discovery/subtitle-matcher';
 export {
   startStremioAddonServer,
