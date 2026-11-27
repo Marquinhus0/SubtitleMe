@@ -13,15 +13,77 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import path, { dirname, relative, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(currentDir, '..');
-const addonDir = resolve(repoRoot, 'apps/stremio-addon');
-const releaseDir = resolve(repoRoot, 'dist/release');
+const defaultAddonDir = resolve(repoRoot, 'apps/stremio-addon');
+const defaultReleaseDir = resolve(repoRoot, 'dist/release');
 
 const FORBIDDEN_TOP_LEVEL_PATTERNS = [/\.env/i, /\.map$/i, /\.git/i];
+
+/**
+ * Resolves npm invocation without `shell: true` (eliminating Node.js DEP0190 on Windows
+ * and avoiding shell argument concatenation).
+ *
+ * On Windows, executes `npm-cli.js` directly via `process.execPath` (`node.exe`).
+ * On POSIX, prefers `npm-cli.js` if explicitly provided via `npm_execpath`, otherwise `npm` directly.
+ */
+export function resolveNpmInvocation(options = {}) {
+  const platform = options.platform ?? process.platform;
+  const execPath = options.execPath ?? process.execPath;
+  const env = options.env ?? process.env;
+  const exists = options.exists ?? existsSync;
+  const pathImpl = platform === 'win32' ? path.win32 : path.posix;
+
+  const envNpmExecPath = env.npm_execpath?.trim();
+  if (envNpmExecPath && /npm-cli\.js$/i.test(envNpmExecPath) && exists(envNpmExecPath)) {
+    return { command: execPath, argsPrefix: [envNpmExecPath], mode: 'node-npm-cli' };
+  }
+
+  const execDir = pathImpl.dirname(execPath);
+  const npmCliCandidates =
+    platform === 'win32'
+      ? [
+          pathImpl.resolve(execDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+          pathImpl.resolve(execDir, '..', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+        ]
+      : [
+          pathImpl.resolve(execDir, '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+          pathImpl.resolve(execDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+        ];
+
+  for (const candidate of npmCliCandidates) {
+    if (exists(candidate)) {
+      return { command: execPath, argsPrefix: [candidate], mode: 'node-npm-cli' };
+    }
+  }
+
+  if (platform !== 'win32') {
+    return { command: 'npm', argsPrefix: [], mode: 'direct-npm' };
+  }
+
+  throw new Error(
+    `Could not locate npm-cli.js alongside Node.js (${execPath}). ` +
+      'Ensure npm is installed with Node.js so dependencies can be installed safely without shell: true.',
+  );
+}
+
+/**
+ * Executes an external process directly with separate arguments and `shell: false`,
+ * preserving exit codes, error propagation, and paths containing spaces.
+ */
+export function runExternalCommand(command, args, options = {}) {
+  const runner = options.execFile ?? execFileSync;
+  const execOptions = {
+    cwd: options.cwd,
+    stdio: options.stdio ?? 'inherit',
+    env: options.env,
+    shell: false,
+  };
+  return runner(command, args, execOptions);
+}
 
 function walkFiles(dir, baseDir = dir) {
   const results = [];
@@ -36,7 +98,14 @@ function walkFiles(dir, baseDir = dir) {
   return results.sort();
 }
 
-function main() {
+export function packageStremioAddon(options = {}) {
+  const addonDir = options.addonDir ?? defaultAddonDir;
+  const releaseDir =
+    options.outputDir ??
+    (process.env.SUBTITLEME_RELEASE_DIR ? resolve(process.env.SUBTITLEME_RELEASE_DIR) : defaultReleaseDir);
+  const execFile = options.execFile ?? execFileSync;
+  const stdio = options.stdio ?? 'inherit';
+
   const addonPkg = JSON.parse(readFileSync(resolve(addonDir, 'package.json'), 'utf-8'));
   const distEntry = resolve(addonDir, 'dist/index.mjs');
   const manifestSrc = readFileSync(resolve(addonDir, 'src/addon/manifest.ts'), 'utf-8');
@@ -105,14 +174,15 @@ function main() {
     }
 
     // 3. Install production-only runtime dependencies (stremio-addon-sdk + transitive deps)
-    const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    execFileSync(
-      npmBin,
-      ['install', '--omit=dev', '--no-audit', '--no-fund', '--ignore-scripts'],
+    // Invokes npm directly (via node + npm-cli.js on Windows) with shell: false to prevent DEP0190.
+    const npmInvocation = resolveNpmInvocation();
+    runExternalCommand(
+      npmInvocation.command,
+      [...npmInvocation.argsPrefix, 'install', '--omit=dev', '--no-audit', '--no-fund', '--ignore-scripts'],
       {
         cwd: stagingDir,
-        stdio: 'inherit',
-        shell: process.platform === 'win32',
+        stdio,
+        execFile,
       },
     );
 
@@ -140,8 +210,9 @@ function main() {
       rmSync(archivePath);
     }
 
-    execFileSync('tar', ['-czf', archivePath, '-C', stagingDir, '.'], {
-      stdio: 'inherit',
+    runExternalCommand('tar', ['-czf', archivePath, '-C', stagingDir, '.'], {
+      stdio,
+      execFile,
     });
 
     const buf = readFileSync(archivePath);
@@ -171,9 +242,24 @@ function main() {
     console.log(`[PASS] Packaged ${artifactName} (${sizeBytes} bytes, ${stagedFiles.length} files)`);
     console.log(`[PASS] SHA-256: ${sha256}`);
     console.log(`[PASS] Checksum written to ${checksumPath}`);
+
+    return {
+      artifactName,
+      archivePath,
+      checksumPath,
+      sha256,
+      sizeBytes,
+      fileCount: stagedFiles.length,
+      version,
+    };
   } finally {
     rmSync(stagingDir, { recursive: true, force: true });
   }
 }
 
-main();
+const isDirectRun =
+  process.argv[1] !== undefined && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+
+if (isDirectRun) {
+  packageStremioAddon();
+}

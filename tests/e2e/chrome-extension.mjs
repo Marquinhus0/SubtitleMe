@@ -1,10 +1,19 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import http from 'node:http';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import {
+  accessSync,
+  constants as fsConstants,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import path, { dirname, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from 'playwright-core';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -13,33 +22,183 @@ const defaultDistDir = resolve(repoRoot, 'apps/chrome-extension/dist');
 const fixtureHtmlPath = resolve(repoRoot, 'tests/fixtures/html5-player.html');
 const sampleVideoPath = resolve(repoRoot, 'tests/fixtures/sample-video.webm');
 
-function findChromeExecutable() {
-  const candidates = [];
-  if (process.env.CHROME_PATH) {
-    candidates.push(process.env.CHROME_PATH);
+function defaultIsExecutable(candidatePath, platform) {
+  try {
+    const stat = statSync(candidatePath);
+    if (!stat.isFile()) return false;
+    if (platform === 'win32') {
+      accessSync(candidatePath, fsConstants.F_OK);
+      return true;
+    }
+    accessSync(candidatePath, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sortChromiumDirsDesc(entries) {
+  return entries
+    .filter((entry) => /^chromium-\d+/i.test(entry))
+    .sort((a, b) => {
+      const numA = Number.parseInt(a.replace(/^chromium-/i, ''), 10) || 0;
+      const numB = Number.parseInt(b.replace(/^chromium-/i, ''), 10) || 0;
+      return numB - numA;
+    });
+}
+
+function getPlaywrightCacheDirs(platform, env, homeDir, pathImpl) {
+  const dirs = [];
+  const customBrowsersPath = env.PLAYWRIGHT_BROWSERS_PATH?.trim();
+  if (customBrowsersPath && customBrowsersPath !== '0') {
+    dirs.push(customBrowsersPath);
   }
 
-  // Prefer Chromium-for-Testing (Playwright) because branded Chrome 137+ disables --load-extension
-  const msPlaywrightDir = '/opt/ms-playwright';
-  if (existsSync(msPlaywrightDir)) {
-    for (const entry of readdirSync(msPlaywrightDir)) {
-      if (entry.startsWith('chromium-')) {
-        candidates.push(resolve(msPlaywrightDir, entry, 'chrome-linux64/chrome'));
-      }
+  if (platform === 'win32') {
+    if (env.LOCALAPPDATA?.trim()) {
+      dirs.push(pathImpl.join(env.LOCALAPPDATA.trim(), 'ms-playwright'));
+    }
+    if (env.USERPROFILE?.trim()) {
+      dirs.push(pathImpl.join(env.USERPROFILE.trim(), 'AppData', 'Local', 'ms-playwright'));
+    }
+    if (homeDir) {
+      dirs.push(pathImpl.join(homeDir, 'AppData', 'Local', 'ms-playwright'));
+    }
+  } else {
+    dirs.push('/opt/ms-playwright');
+    if (homeDir) {
+      dirs.push(pathImpl.join(homeDir, '.cache', 'ms-playwright'));
     }
   }
 
-  candidates.push(
+  return [...new Set(dirs)];
+}
+
+function getPlaywrightRelativeExecutables(platform) {
+  if (platform === 'win32') {
+    return [
+      ['chrome-win64', 'chrome.exe'],
+      ['chrome-win', 'chrome.exe'],
+      ['chrome-win32', 'chrome.exe'],
+      ['chrome-win64', 'chromium.exe'],
+      ['chrome-win', 'chromium.exe'],
+    ];
+  }
+  return [
+    ['chrome-linux64', 'chrome'],
+    ['chrome-linux', 'chrome'],
+    ['chrome-linux64', 'chromium'],
+    ['chrome-linux', 'chromium'],
+  ];
+}
+
+function getSystemFallbackCandidates(platform, env, pathImpl) {
+  if (platform === 'win32') {
+    const candidates = [];
+    if (env.PROGRAMFILES?.trim()) {
+      candidates.push(pathImpl.join(env.PROGRAMFILES.trim(), 'Google', 'Chrome', 'Application', 'chrome.exe'));
+    }
+    if (env['PROGRAMFILES(X86)']?.trim()) {
+      candidates.push(pathImpl.join(env['PROGRAMFILES(X86)'].trim(), 'Google', 'Chrome', 'Application', 'chrome.exe'));
+    }
+    if (env.LOCALAPPDATA?.trim()) {
+      candidates.push(pathImpl.join(env.LOCALAPPDATA.trim(), 'Google', 'Chrome', 'Application', 'chrome.exe'));
+    }
+    return candidates;
+  }
+
+  return [
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
     '/usr/bin/google-chrome',
     '/usr/bin/google-chrome-stable',
-  );
+  ];
+}
 
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
+/**
+ * Resolves a Chromium/Chrome executable across Windows and Linux without hardcoded user paths.
+ * Priority:
+ *   1. Explicit `CHROME_PATH` environment variable (validated; fails fast if invalid).
+ *   2. Playwright-managed Chromium (`chromium.executablePath()` + cache directories).
+ *   3. Known OS fallback installations.
+ */
+export function resolveChromeExecutable(options = {}) {
+  const platform = options.platform ?? process.platform;
+  const env = options.env ?? process.env;
+  const homeDir = options.homeDir ?? homedir();
+  const pathImpl = platform === 'win32' ? path.win32 : path.posix;
+  const exists = options.exists ?? existsSync;
+  const isExecutable =
+    options.isExecutable ?? ((candidatePath) => defaultIsExecutable(candidatePath, platform));
+  const readDir =
+    options.readDir ??
+    ((dirPath) => {
+      try {
+        return readdirSync(dirPath);
+      } catch {
+        return [];
+      }
+    });
+
+  // 1. Explicit CHROME_PATH takes strict priority
+  const explicitChromePath = env.CHROME_PATH?.trim();
+  if (explicitChromePath) {
+    if (exists(explicitChromePath) && isExecutable(explicitChromePath)) {
+      return { executablePath: explicitChromePath, source: 'env:CHROME_PATH' };
+    }
+    throw new Error(
+      `CHROME_PATH is set to "${explicitChromePath}", but the file does not exist or is not executable. ` +
+        'Provide a valid browser executable path or unset CHROME_PATH to use Playwright Chromium auto-detection.',
+    );
   }
-  return null;
+
+  // 2a. Playwright built-in resolver (respects PLAYWRIGHT_BROWSERS_PATH across OSes)
+  let pwExecutable = options.playwrightExecutablePath;
+  if (pwExecutable === undefined) {
+    try {
+      pwExecutable = chromium.executablePath();
+    } catch {
+      pwExecutable = null;
+    }
+  }
+  if (pwExecutable && exists(pwExecutable) && isExecutable(pwExecutable)) {
+    return { executablePath: pwExecutable, source: 'playwright:api' };
+  }
+
+  // 2b. Scan Playwright cache directories (newest chromium-* revision first)
+  // Prefer Chromium-for-Testing (Playwright) because branded Chrome 137+ disables --load-extension
+  const cacheDirs = getPlaywrightCacheDirs(platform, env, homeDir, pathImpl);
+  const relExecutables = getPlaywrightRelativeExecutables(platform);
+  for (const cacheDir of cacheDirs) {
+    if (!exists(cacheDir)) continue;
+    const chromiumEntries = sortChromiumDirsDesc(readDir(cacheDir));
+    for (const entry of chromiumEntries) {
+      for (const relSegments of relExecutables) {
+        const candidate = pathImpl.join(cacheDir, entry, ...relSegments);
+        if (exists(candidate) && isExecutable(candidate)) {
+          return { executablePath: candidate, source: 'playwright:cache' };
+        }
+      }
+    }
+  }
+
+  // 3. Known system fallback locations
+  const fallbackCandidates = getSystemFallbackCandidates(platform, env, pathImpl);
+  for (const candidate of fallbackCandidates) {
+    if (exists(candidate) && isExecutable(candidate)) {
+      return { executablePath: candidate, source: 'system:fallback' };
+    }
+  }
+
+  throw new Error(
+    `Chromium/Chrome executable not found (platform=${platform}). ` +
+      `Checked Playwright cache dirs [${cacheDirs.join(', ')}] and system paths. ` +
+      'Configure CHROME_PATH="<path-to-chromium>", set PLAYWRIGHT_BROWSERS_PATH, or install Playwright Chromium (npx playwright install chromium).',
+  );
+}
+
+export function findChromeExecutable(options = {}) {
+  return resolveChromeExecutable(options).executablePath;
 }
 
 function startFixtureServer() {
@@ -361,7 +520,12 @@ async function run() {
   }
 }
 
-run().catch((error) => {
-  console.error('[FAIL] Real Chromium E2E Suite failed:', error);
-  process.exit(1);
-});
+const isDirectRun =
+  process.argv[1] !== undefined && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+
+if (isDirectRun) {
+  run().catch((error) => {
+    console.error('[FAIL] Real Chromium E2E Suite failed:', error);
+    process.exit(1);
+  });
+}
