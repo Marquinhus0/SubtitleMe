@@ -77,6 +77,14 @@ function main() {
       dependencies: {
         'stremio-addon-sdk': sdkRange,
       },
+      overrides: {
+        router: {
+          'path-to-regexp': '0.1.13',
+        },
+        'external-editor': {
+          tmp: '0.2.7',
+        },
+      },
     };
     const standalonePkgJson = `${JSON.stringify(standalonePkg, null, 2)}\n`;
     assert.ok(
