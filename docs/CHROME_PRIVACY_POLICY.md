@@ -22,6 +22,7 @@ All user data stays strictly on your device:
 SubtitleMe uses least-privilege Manifest V3 permissions:
 - `storage`: saves your local preferences in `chrome.storage.local`.
 - `activeTab` and `scripting`: inject the content script **only on demand** in the currently active tab when you interact with the extension, exclusively to detect compatible HTML5 `<video>` elements, read accessible `TextTrack` cues, and render the dual-subtitle Shadow DOM overlay.
+- While active on a tab, SubtitleMe transiently reads the active video's playback/interaction events and page hostname in memory solely to detect the active player, synchronize subtitles, and display player status. None of this information is stored or transmitted.
 - Content scripts do not read cookies, passwords, form inputs, or unrelated page content.
 
 ---
@@ -42,4 +43,5 @@ Todos os dados permanecem exclusivamente no seu dispositivo:
 ### 3. Permissões e Acesso às Páginas
 - `storage`: salva suas preferências locais em `chrome.storage.local`.
 - `activeTab` e `scripting`: injetam o content script **apenas sob demanda** na aba ativa quando você aciona a extensão, exclusivamente para detectar vídeos HTML5 compatíveis, ler faixas `TextTrack` acessíveis e exibir o overlay de legendas duplas em Shadow DOM.
+- Enquanto ativo em uma aba, o SubtitleMe lê apenas em memória eventos de reprodução/interação do vídeo e o domínio (hostname) da página exclusivamente para detectar o player ativo, sincronizar legendas e exibir o status. Nenhuma dessas informações é armazenada ou transmitida.
 - Os content scripts não leem cookies, senhas, formulários ou dados fora do player de vídeo.

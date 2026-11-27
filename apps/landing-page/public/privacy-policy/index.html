@@ -304,6 +304,12 @@
               overlay.
             </li>
             <li>
+              While active on a tab, SubtitleMe transiently reads the active video's
+              playback/interaction events and page hostname in memory solely to detect the active
+              player, synchronize subtitles, and display player status. None of this information is
+              stored or transmitted.
+            </li>
+            <li>
               Content scripts do not read cookies, passwords, form inputs, or unrelated page
               content.
             </li>
@@ -360,6 +366,12 @@
               <strong>apenas sob demanda</strong> na aba ativa quando você aciona a extensão,
               exclusivamente para detectar vídeos HTML5 compatíveis, ler faixas
               <code>TextTrack</code> acessíveis e exibir o overlay de legendas duplas em Shadow DOM.
+            </li>
+            <li>
+              Enquanto ativo em uma aba, o SubtitleMe lê apenas em memória eventos de
+              reprodução/interação do vídeo e o domínio (hostname) da página exclusivamente para
+              detectar o player ativo, sincronizar legendas e exibir o status. Nenhuma dessas
+              informações é armazenada ou transmitida.
             </li>
             <li>
               Os content scripts não leem cookies, senhas, formulários ou dados fora do player de
