@@ -1,4 +1,4 @@
-# SubtitleMe Stremio Addon (`v1.0.0`) — Quickstart & Guia Operacional
+# SubtitleMe Stremio Addon (`v1.0.1`) — Quickstart & Guia Operacional
 
 O **SubtitleMe** combina legendas em dois idiomas simultâneos no Stremio Desktop usando um servidor **100% local** (`127.0.0.1`), sem contas na nuvem, sem assinaturas e com edição ao vivo.
 
@@ -18,7 +18,7 @@ Este pacote é totalmente independente do monorepo e já contém todas as depend
 
 ```powershell
 mkdir subtitleme-stremio
-tar -xzf subtitleme-stremio-v1.0.0.tar.gz -C subtitleme-stremio
+tar -xzf subtitleme-stremio-v1.0.1.tar.gz -C subtitleme-stremio
 cd subtitleme-stremio
 ```
 

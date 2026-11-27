@@ -97,7 +97,7 @@ export class OpenSubtitlesDiscoveryProvider implements SubtitleDiscoveryProvider
     this.enabled = options.enabled === true;
     this.apiKey = (options.apiKey ?? '').trim();
     this.bearerToken = options.bearerToken?.trim() || undefined;
-    this.userAgent = options.userAgent ?? 'SubtitleMe v1.0.0';
+    this.userAgent = options.userAgent ?? 'SubtitleMe v1.0.1';
     this.baseUrl = (options.baseUrl ?? OPENSUBTITLES_DEFAULT_BASE_URL).replace(/\/+$/, '');
     this.timeoutMs = options.timeoutMs ?? OPENSUBTITLES_DEFAULT_TIMEOUT_MS;
     this.maxRetries = Math.min(Math.max(options.maxRetries ?? 1, 0), 2);
