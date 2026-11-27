@@ -433,7 +433,7 @@ describe('Sprint 15.4 — Content Identification, Discovery Architecture & All 2
       // Verify manifest has no restrictive idPrefixes
       const manifestRes = await fetch(`${s2.baseUrl}/manifest.json`);
       const manifestJson = (await manifestRes.json()) as { version: string; idPrefixes?: string[] };
-      expect(manifestJson.version).toBe('1.0.0');
+      expect(manifestJson.version).toBe('1.0.1');
       expect(manifestJson.idPrefixes).toBeUndefined();
 
       // Stremio protocol request for URL-encoded series episode

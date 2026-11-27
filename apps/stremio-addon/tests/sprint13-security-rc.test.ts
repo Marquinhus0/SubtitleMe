@@ -147,14 +147,14 @@ describe('Sprint 13 — Deep Security Audit, Paths With Spaces & Release Candida
     }
   });
 
-  it('verifies GA 1.0.0 metadata consistency and Windows script space-safe quoting', () => {
+  it('verifies GA 1.0.1 metadata consistency and Windows script space-safe quoting', () => {
     const pkg = JSON.parse(
       readFileSync(resolve(process.cwd(), 'apps/stremio-addon/package.json'), 'utf-8'),
     ) as { version: string };
     const manifest = createAddonManifest();
 
-    expect(pkg.version).toBe('1.0.0');
-    expect(manifest.version).toBe('1.0.0');
+    expect(pkg.version).toBe('1.0.1');
+    expect(manifest.version).toBe('1.0.1');
 
     const ps1 = readFileSync(
       resolve(process.cwd(), 'apps/stremio-addon/bin/start-companion.ps1'),
