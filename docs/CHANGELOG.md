@@ -2,6 +2,23 @@
 
 All notable changes to SubtitleMe will be documented in this file.
 
+## [1.0.1] — 2026-11-27
+
+### SubtitleMe Stremio Addon (`@subtitleme/stremio-addon`) — Security Maintenance Release
+
+#### Segurança (Remediação de Vulnerabilidades Transitivas de Produção)
+- Eliminadas todas as **5 vulnerabilidades transitivas (`4 High`, `1 Low`)** na cadeia de `stremio-addon-sdk@1.6.10` via overrides escopados em `pnpm-workspace.yaml` e espelhados no `package.json` standalone gerado por `scripts/package-stremio-addon.mjs`:
+  - `router > path-to-regexp` atualizado de `0.1.7` para **`0.1.13`** (`GHSA-9wv6-86v2-598j`, `GHSA-rhx6-c78j-4q9w`, `GHSA-37ch-88jc-xwx2` — unificado com `express@4.22.3`).
+  - `external-editor > tmp` atualizado de `0.0.33` para **`0.2.7`** (`GHSA-ph9p-34f9-6g65`, `GHSA-52f5-9888-hmc6`).
+- Validado **`0` vulnerabilidades de produção** tanto no monorepo (`pnpm audit --prod`) quanto no pacote standalone (`npm audit --omit=dev`).
+
+#### Documentação & Versionamento
+- Consolidado `docs/STREMIO_INSTALLATION.md` como redirecionamento canônico para `docs/INSTALLATION.md` e `apps/stremio-addon/QUICKSTART.md`, preservando o contexto histórico da fase Local MVP.
+- Atualizada a versão do `@subtitleme/stremio-addon`, manifesto Stremio (`com.subtitleme.addon`), `User-Agent` (`SubtitleMe v1.0.1`), `QUICKSTART.md` e pacote standalone (`subtitleme-stremio-v1.0.1.tar.gz`).
+- Sem novas funcionalidades e sem telemetria; extensão Chrome mantida independentemente em `1.0.0` RC.
+
+---
+
 ## [1.0.0] — 2026-11-26
 
 ### SubtitleMe Stremio Addon (`@subtitleme/stremio-addon`) — General Availability (GA)
