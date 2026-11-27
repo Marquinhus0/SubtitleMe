@@ -1,5 +1,4 @@
 import http, { type Server } from 'node:http';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import stremioSdk from 'stremio-addon-sdk';
 const { addonBuilder, getRouter } = stremioSdk;
 import { createAddonManifest } from '../addon/manifest';
@@ -14,7 +13,6 @@ import { CompanionSubtitleStore } from '../companion/companion-store';
 import { GeneratedSubtitleCache } from '../delivery/generated-subtitle-cache';
 import { SubtitleFileService } from '../delivery/subtitle-file-service';
 import { RuntimeSettingsStore } from '../config/runtime-settings';
-import { join } from 'node:path';
 import { SubtitleDiscoveryOrchestrator } from '../discovery/discovery-orchestrator';
 import type { SubtitleDiscoveryProvider } from '../discovery/discovery-types';
 import { LocalDiscoveryProvider } from '../discovery/local-discovery-provider';
@@ -118,31 +116,40 @@ export async function startStremioAddonServer(
   const manifest = createAddonManifest();
   const builder = new addonBuilder(manifest);
 
-  const settingsStore = new RuntimeSettingsStore(join(persistence.getDataDir(), 'settings.json'));
-  const providersFilePath = join(persistence.getDataDir(), 'providers.json');
+  const settingsStore = new RuntimeSettingsStore(persistence);
+  const PROVIDERS_ENCRYPTED_FILENAME = 'providers.enc.json';
+  const PROVIDERS_LEGACY_FILENAME = 'providers.json';
+  const PROVIDERS_PURPOSE = 'providers';
 
   const saveProvidersToDisk = () => {
     if (!persistence.isEnabled()) return;
-    try {
-      mkdirSync(persistence.getDataDir(), { recursive: true, mode: 0o700 });
-      const data = {
-        subtitleSyncEnabled: subtitleSyncAddon.isEnabled(),
-        subtitleSyncUrl: subtitleSyncAddon.getManifestUrlForPersistence() ?? '',
-        v1Enabled: openSubtitlesV1.isEnabled(),
-        v1ApiKey: openSubtitlesV1.getApiKeyForPersistence(),
-        v3Enabled: openSubtitlesV3.isEnabled(),
-      };
-      writeFileSync(providersFilePath, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 });
-    } catch {
-      // Non-fatal
-    }
+    const data = {
+      subtitleSyncEnabled: subtitleSyncAddon.isEnabled(),
+      subtitleSyncUrl: subtitleSyncAddon.getManifestUrlForPersistence() ?? '',
+      v1Enabled: openSubtitlesV1.isEnabled(),
+      v1ApiKey: openSubtitlesV1.getApiKeyForPersistence(),
+      v3Enabled: openSubtitlesV3.isEnabled(),
+    };
+    // Fail-closed: encrypts via OS key vault + AES-256-GCM; never writes plaintext
+    persistence.writeEncryptedJsonFile(PROVIDERS_ENCRYPTED_FILENAME, PROVIDERS_PURPOSE, data);
   };
 
   if (persistence.isEnabled()) {
     settingsStore.load();
-    if (existsSync(providersFilePath)) {
-      try {
-        const saved = JSON.parse(readFileSync(providersFilePath, 'utf-8')) as Record<string, unknown>;
+    try {
+      const migrated = persistence.migrateLegacyJsonFile<Record<string, unknown>>(
+        PROVIDERS_LEGACY_FILENAME,
+        PROVIDERS_ENCRYPTED_FILENAME,
+        PROVIDERS_PURPOSE,
+      );
+      const saved =
+        migrated.migrated && migrated.data
+          ? migrated.data
+          : persistence.readEncryptedJsonFile<Record<string, unknown>>(
+              PROVIDERS_ENCRYPTED_FILENAME,
+              PROVIDERS_PURPOSE,
+            );
+      if (saved && typeof saved === 'object') {
         if (!options.subtitleSyncOptions && typeof saved.subtitleSyncUrl === 'string' && saved.subtitleSyncUrl) {
           subtitleSyncAddon.configure({
             enabled: saved.subtitleSyncEnabled === true,
@@ -158,9 +165,9 @@ export async function startStremioAddonServer(
         if (!options.openSubtitlesV3Options && typeof saved.v3Enabled === 'boolean') {
           openSubtitlesV3.setEnabled(saved.v3Enabled);
         }
-      } catch {
-        // Ignore corrupted providers.json
       }
+    } catch {
+      // Ignore corrupted/tampered providers file cleanly without crashing startup
     }
   }
 
@@ -243,6 +250,7 @@ export async function startStremioAddonServer(
     persistence,
     discoveryOrchestrator,
     close(): Promise<void> {
+      persistence.dispose();
       return new Promise((resolveClose, rejectClose) => {
         server.close((err) => {
           if (err) rejectClose(err);

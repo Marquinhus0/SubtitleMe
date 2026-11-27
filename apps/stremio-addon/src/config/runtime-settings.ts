@@ -1,5 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import type { CompanionPersistence } from '../companion/companion-persistence';
 
 const ALLOWED_KEYS = [
   'primaryLanguage',
@@ -22,21 +21,45 @@ const ALLOWED_KEYS = [
   'revealMs',
 ] as const;
 
+export const SETTINGS_ENCRYPTED_FILENAME = 'settings.enc.json';
+export const SETTINGS_LEGACY_FILENAME = 'settings.json';
+const SETTINGS_PURPOSE = 'settings';
+
 /**
  * Live user preferences saved by the /configure Studio. They override the (static) addon
  * install-URL config on every subtitle request, so changing colors/languages/sync never
- * requires reinstalling the addon in Stremio. Contains no secrets (API keys are never stored).
+ * requires reinstalling the addon in Stremio.
+ *
+ * When local persistence is enabled, settings are encrypted at rest via `CompanionPersistence`
+ * (AES-256-GCM + OS key vault) and legacy plaintext `settings.json` files are migrated safely.
  */
 export class RuntimeSettingsStore {
   private raw: Record<string, string> = {};
 
-  public constructor(private readonly filePath?: string) {}
+  public constructor(private readonly persistence?: CompanionPersistence) {}
 
   public load(): void {
-    if (!this.filePath || !existsSync(this.filePath)) return;
+    if (!this.persistence || !this.persistence.isEnabled()) return;
     try {
-      const parsed = JSON.parse(readFileSync(this.filePath, 'utf-8')) as Record<string, unknown>;
-      this.raw = this.sanitize(parsed);
+      // Safely migrate legacy plaintext settings.json -> settings.enc.json if present
+      const migration = this.persistence.migrateLegacyJsonFile<Record<string, string>>(
+        SETTINGS_LEGACY_FILENAME,
+        SETTINGS_ENCRYPTED_FILENAME,
+        SETTINGS_PURPOSE,
+        (parsed) => this.sanitize(parsed),
+      );
+      if (migration.migrated && migration.data) {
+        this.raw = this.sanitize(migration.data);
+        return;
+      }
+
+      const loaded = this.persistence.readEncryptedJsonFile<Record<string, unknown>>(
+        SETTINGS_ENCRYPTED_FILENAME,
+        SETTINGS_PURPOSE,
+      );
+      if (loaded && typeof loaded === 'object') {
+        this.raw = this.sanitize(loaded);
+      }
     } catch {
       this.raw = {};
     }
@@ -52,13 +75,13 @@ export class RuntimeSettingsStore {
 
   public set(input: Record<string, unknown>, persist: boolean): void {
     this.raw = this.sanitize(input);
-    if (persist && this.filePath) {
-      try {
-        mkdirSync(dirname(this.filePath), { recursive: true });
-        writeFileSync(this.filePath, JSON.stringify(this.raw, null, 2), 'utf-8');
-      } catch {
-        // Non-fatal: settings remain active in memory
-      }
+    if (persist && this.persistence && this.persistence.isEnabled()) {
+      // Fail-closed: propagates vault/encryption errors instead of writing plaintext
+      this.persistence.writeEncryptedJsonFile(
+        SETTINGS_ENCRYPTED_FILENAME,
+        SETTINGS_PURPOSE,
+        this.raw,
+      );
     }
   }
 

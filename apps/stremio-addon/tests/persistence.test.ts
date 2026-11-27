@@ -7,6 +7,7 @@ import {
   COMPANION_TOKEN_HEADER,
   CompanionPersistence,
   CompanionSubtitleStore,
+  InMemoryKeyVault,
   assertPathInsideDir,
   startStremioAddonServer,
   validateCompanionUpload,
@@ -44,9 +45,10 @@ afterEach(() => {
 describe('Sprint 11 — Optional Local Persistence & Recovery', () => {
   it('persists SRT/VTT atomically under random internal filenames, recovers after restart, and supports replace/delete/clear', () => {
     const dataDir = createTempDataDir();
+    const keyVault = new InMemoryKeyVault();
 
     // Session 1: persist two tracks
-    const p1 = new CompanionPersistence({ enabled: true, dataDir });
+    const p1 = new CompanionPersistence({ enabled: true, dataDir, keyVault });
     const store1 = new CompanionSubtitleStore({ persistence: p1 });
 
     const upEn = validateCompanionUpload({
@@ -75,7 +77,7 @@ describe('Sprint 11 — Optional Local Persistence & Recovery', () => {
     expect(filesOnDisk.filter((f) => /\.(srt|vtt)$/.test(f))).toHaveLength(2);
 
     // Session 2: simulate full Companion restart -> index rebuilt automatically
-    const p2 = new CompanionPersistence({ enabled: true, dataDir });
+    const p2 = new CompanionPersistence({ enabled: true, dataDir, keyVault });
     const store2 = new CompanionSubtitleStore({ persistence: p2 });
     expect(store2.count()).toBe(2);
     expect(p2.getStatus().recoveredCount).toBe(2);
@@ -111,17 +113,18 @@ describe('Sprint 11 — Optional Local Persistence & Recovery', () => {
 
   it('handles corrupted index.json and corrupted subtitle files safely without crashing', () => {
     const dataDir = createTempDataDir();
+    const keyVault = new InMemoryKeyVault();
 
     // 1. Corrupted JSON index -> recovers 0 gracefully
     writeFileSync(join(dataDir, 'index.json'), '{not-valid-json', 'utf-8');
-    const pCorrupt = new CompanionPersistence({ enabled: true, dataDir });
+    const pCorrupt = new CompanionPersistence({ enabled: true, dataDir, keyVault });
     const resCorrupt = pCorrupt.loadAll();
     expect(resCorrupt.records).toEqual([]);
     expect(resCorrupt.corruptedSkippedCount).toBe(1);
 
     // 2. Valid index with 1 good file + 1 missing/corrupt file -> skips bad, keeps good
     const dataDir2 = createTempDataDir();
-    const pGood = new CompanionPersistence({ enabled: true, dataDir: dataDir2 });
+    const pGood = new CompanionPersistence({ enabled: true, dataDir: dataDir2, keyVault });
     const store = new CompanionSubtitleStore({ persistence: pGood });
     const up = validateCompanionUpload({
       contentId: 'tt1254207',
@@ -132,12 +135,10 @@ describe('Sprint 11 — Optional Local Persistence & Recovery', () => {
     if (!up.ok) throw new Error(up.error);
     store.upsert(up.value);
 
-    // Inject a corrupted entry into index.json alongside the valid one
-    const indexPath = join(dataDir2, 'index.json');
-    const raw = JSON.parse(
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('node:fs').readFileSync(indexPath, 'utf-8') as string,
-    ) as { version: number; entries: unknown[] };
+    // Inject a corrupted entry into the encrypted index.json alongside the valid one
+    const raw = pGood.readEncryptedJsonFile<{ version: number; entries: unknown[] }>('index.json', 'index');
+    expect(raw).not.toBeNull();
+    if (!raw) throw new Error('Expected readable encrypted index');
     raw.entries.push({
       id: 'local-11111111-1111-1111-1111-111111111111',
       contentId: 'tt9999999',
@@ -150,9 +151,9 @@ describe('Sprint 11 — Optional Local Persistence & Recovery', () => {
       cueCount: 1,
       uploadedAt: Date.now(),
     });
-    writeFileSync(indexPath, JSON.stringify(raw), 'utf-8');
+    pGood.writeEncryptedJsonFile('index.json', 'index', raw);
 
-    const pRestart = new CompanionPersistence({ enabled: true, dataDir: dataDir2 });
+    const pRestart = new CompanionPersistence({ enabled: true, dataDir: dataDir2, keyVault });
     const storeRestart = new CompanionSubtitleStore({ persistence: pRestart });
     expect(storeRestart.count()).toBe(1);
     expect(pRestart.getStatus().corruptedSkippedCount).toBe(1);
@@ -167,6 +168,7 @@ describe('Sprint 11 — Optional Local Persistence & Recovery', () => {
     const pSmall = new CompanionPersistence({
       enabled: true,
       dataDir,
+      keyVault: new InMemoryKeyVault(),
       maxStorageBytes: 60, // smaller than EN_SRT + PT_VTT combined
     });
     const store = new CompanionSubtitleStore({ persistence: pSmall });
@@ -192,11 +194,12 @@ describe('Sprint 11 — Optional Local Persistence & Recovery', () => {
 
   it('recovers subtitles across full HTTP server restart, serves combined VTT, and invalidates on delete', async () => {
     const dataDir = createTempDataDir();
+    const keyVault = new InMemoryKeyVault();
 
     // Server instance 1: enable persistence via consent endpoint & upload pair
     const s1 = await startStremioAddonServer({
       port: 0,
-      persistenceOptions: { enabled: false, dataDir },
+      persistenceOptions: { enabled: false, dataDir, keyVault },
     });
     let primaryId: string;
     try {
@@ -245,7 +248,7 @@ describe('Sprint 11 — Optional Local Persistence & Recovery', () => {
     // Server instance 2: fresh server pointing at same dataDir -> recovers both tracks!
     const s2 = await startStremioAddonServer({
       port: 0,
-      persistenceOptions: { enabled: true, dataDir },
+      persistenceOptions: { enabled: true, dataDir, keyVault },
     });
     try {
       expect(s2.companionStore.count()).toBe(2);

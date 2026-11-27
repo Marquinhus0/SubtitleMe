@@ -165,6 +165,43 @@ export {
   type RunningStremioAddonServer,
   type StremioAddonServerOptions,
 } from './server/server';
+export {
+  AES_256_KEY_BYTES,
+  CryptoIntegrityError,
+  ENVELOPE_ALG,
+  ENVELOPE_FORMAT,
+  GCM_IV_BYTES,
+  GCM_TAG_BYTES,
+  decryptJson,
+  decryptText,
+  encryptJson,
+  encryptText,
+  isEncryptedEnvelope,
+  type EncryptedEnvelopeV1,
+} from './security/data-cipher';
+export {
+  DEFAULT_VAULT_ACCOUNT,
+  DEFAULT_VAULT_SERVICE,
+  PersistenceKeyManager,
+  type PersistenceKeyManagerOptions,
+} from './security/key-manager';
+export {
+  LinuxSecretServiceVault,
+  MacOsKeychainVault,
+  UnsupportedOsKeyVault,
+  WindowsCredentialVault,
+  createOsKeyVault,
+  type CreateOsKeyVaultOptions,
+  type OsVaultExecFileFn,
+  type OsVaultExecOptions,
+} from './security/os-key-vault';
+export {
+  InMemoryKeyVault,
+  VaultOperationError,
+  VaultPermissionError,
+  VaultUnavailableError,
+  type KeyVault,
+} from './security/secret-vault';
 
 const isDirectRun =
   typeof process !== 'undefined' && isDirectExecution(import.meta.url, process.argv[1]);

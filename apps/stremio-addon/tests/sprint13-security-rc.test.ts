@@ -8,6 +8,7 @@ import {
   COMPANION_TOKEN_HEADER,
   CompanionPersistence,
   CompanionSubtitleStore,
+  InMemoryKeyVault,
   createAddonManifest,
   startStremioAddonServer,
   validateCompanionUpload,
@@ -107,7 +108,8 @@ describe('Sprint 13 — Deep Security Audit, Paths With Spaces & Release Candida
 
   it('persists and recovers cleanly in directories containing spaces and rejects symlinked index.json via O_NOFOLLOW', () => {
     const dirWithSpaces = createTempDir('SubtitleMe User Data ');
-    const p1 = new CompanionPersistence({ enabled: true, dataDir: dirWithSpaces });
+    const keyVault = new InMemoryKeyVault();
+    const p1 = new CompanionPersistence({ enabled: true, dataDir: dirWithSpaces, keyVault });
     const store1 = new CompanionSubtitleStore({ persistence: p1 });
 
     const up = validateCompanionUpload({
@@ -119,7 +121,7 @@ describe('Sprint 13 — Deep Security Audit, Paths With Spaces & Release Candida
     if (!up.ok) throw new Error(up.error);
     store1.upsert(up.value);
 
-    const p2 = new CompanionPersistence({ enabled: true, dataDir: dirWithSpaces });
+    const p2 = new CompanionPersistence({ enabled: true, dataDir: dirWithSpaces, keyVault });
     const recovery = p2.loadAll();
     expect(recovery.records).toHaveLength(1);
     expect(recovery.records[0]?.record.filename).toBe('my movie sub.srt');
@@ -140,7 +142,7 @@ describe('Sprint 13 — Deep Security Audit, Paths With Spaces & Release Candida
     }
 
     if (symlinkCreated) {
-      const pSym = new CompanionPersistence({ enabled: true, dataDir: symlinkDir });
+      const pSym = new CompanionPersistence({ enabled: true, dataDir: symlinkDir, keyVault });
       const symRecovery = pSym.loadAll();
       expect(symRecovery.records).toEqual([]);
       expect(symRecovery.corruptedSkippedCount).toBe(1);

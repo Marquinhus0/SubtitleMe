@@ -20,6 +20,16 @@ import { join, resolve, sep } from 'node:path';
 import type { SubtitleFormat } from '@subtitleme/shared-types';
 import { parseSubtitle } from '@subtitleme/subtitle-parser';
 import { findLanguageDescriptor } from '../config/addon-config';
+import {
+  decryptJson,
+  decryptText,
+  encryptJson,
+  encryptText,
+  isEncryptedEnvelope,
+} from '../security/data-cipher';
+import { PersistenceKeyManager } from '../security/key-manager';
+import { createOsKeyVault } from '../security/os-key-vault';
+import type { KeyVault } from '../security/secret-vault';
 import { MAX_COMPANION_SUBTITLE_BYTES } from './companion-config';
 import type { CompanionSubtitleRecord, ContentAssociationKind } from './companion-types';
 import { validateContentId, validateSubtitleFilename } from './companion-validation';
@@ -28,6 +38,11 @@ export const DEFAULT_MAX_PERSISTENCE_BYTES = 50 * 1024 * 1024; // 50 MB default 
 const INDEX_FILENAME = 'index.json';
 const INTERNAL_FILE_RE = /^[a-f0-9-]{36}\.(srt|vtt)$/;
 const TEMP_FILE_MARKER = '.tmp.';
+const INDEX_PURPOSE = 'index';
+
+function subtitlePurpose(id: string): string {
+  return `subtitle:${id}`;
+}
 
 export interface PersistedIndexEntry {
   readonly id: string;
@@ -56,6 +71,10 @@ export interface CompanionPersistenceOptions {
   dataDir?: string;
   /** Maximum total disk bytes permitted across all persisted subtitle files. */
   maxStorageBytes?: number;
+  /** Optional custom OS key vault (primarily for dependency injection in tests). */
+  keyVault?: KeyVault;
+  /** Optional pre-configured PersistenceKeyManager. */
+  keyManager?: PersistenceKeyManager;
 }
 
 export interface CompanionStorageStatus {
@@ -67,13 +86,20 @@ export interface CompanionStorageStatus {
   readonly recoveredCount: number;
   readonly corruptedSkippedCount: number;
   readonly cleanedTempFiles: number;
-  readonly encryptedAtRest: false;
+  readonly encryptedAtRest: boolean;
+  readonly vaultBackend: string;
 }
 
 export interface PersistenceRecoveryResult {
   readonly records: Array<{ record: CompanionSubtitleRecord; sampleLines: readonly string[] }>;
   readonly corruptedSkippedCount: number;
   readonly cleanedTempFiles: number;
+  readonly migratedLegacyCount?: number;
+}
+
+export interface LegacyFileMigrationResult<T> {
+  readonly migrated: boolean;
+  readonly data: T | null;
 }
 
 function getDefaultDataDir(): string {
@@ -169,22 +195,23 @@ function writeFileAtomic(targetPath: string, content: string): void {
 }
 
 /**
- * Optional local-only disk persistence for SubtitleMe Companion.
+ * Optional local-only encrypted disk persistence for SubtitleMe Companion.
  *
  * Security & Integrity guarantees:
  * - Disabled by default (`enabled: false`) until explicit user consent.
+ * - Uses OS native credential vault via `PersistenceKeyManager` (fail-closed: NEVER falls back to plaintext).
+ * - Encrypts all persisted files at rest using AES-256-GCM (unique 96-bit IV + 128-bit auth tag + AAD).
  * - Uses controlled private directory (`0o700`) and files (`0o600` on POSIX).
  * - Rejects symbolic links and path traversal outside `dataDir`.
- * - Generates random UUID internal filenames; client filenames are stored ONLY as metadata.
- * - Enforces atomic writes (temp + rename), cleans orphan `.tmp.*` files from interrupted writes,
- *   and enforces strict storage byte quotas.
- * - Validates and re-parses files during recovery, safely skipping corrupted records.
- * - Does NOT claim encryption-at-rest (`encryptedAtRest: false`).
+ * - Enforces atomic writes (temp + rename), cleans orphan `.tmp.*` files, and supports safe
+ *   non-destructive migration of legacy plaintext files.
  */
 export class CompanionPersistence {
   private enabled: boolean;
+  private encryptionActive = false;
   private readonly dataDir: string;
   private readonly maxStorageBytes: number;
+  private readonly keyManager: PersistenceKeyManager;
   private readonly entriesById = new Map<string, PersistedIndexEntry>();
   private usedBytes = 0;
   private recoveredCount = 0;
@@ -195,6 +222,19 @@ export class CompanionPersistence {
     this.enabled = options.enabled === true;
     this.dataDir = resolve(options.dataDir ?? getDefaultDataDir());
     this.maxStorageBytes = options.maxStorageBytes ?? DEFAULT_MAX_PERSISTENCE_BYTES;
+    this.keyManager =
+      options.keyManager ?? new PersistenceKeyManager(options.keyVault ?? createOsKeyVault());
+
+    if (this.enabled) {
+      // Fail-closed immediately if OS vault is unavailable when persistence is requested
+      this.requireKey();
+    }
+  }
+
+  private requireKey(): Buffer {
+    const key = this.keyManager.getOrCreateKey();
+    this.encryptionActive = true;
+    return key;
   }
 
   public isEnabled(): boolean {
@@ -202,9 +242,14 @@ export class CompanionPersistence {
   }
 
   public setEnabled(enabled: boolean): void {
-    this.enabled = enabled;
-    if (this.enabled) {
+    if (enabled) {
+      // Verify OS vault before activating persistence (fail-closed, never plaintext)
+      this.requireKey();
+      this.enabled = true;
       this.ensureDataDir();
+    } else {
+      this.enabled = false;
+      this.encryptionActive = false;
     }
   }
 
@@ -222,8 +267,14 @@ export class CompanionPersistence {
       recoveredCount: this.recoveredCount,
       corruptedSkippedCount: this.corruptedSkippedCount,
       cleanedTempFiles: this.cleanedTempFiles,
-      encryptedAtRest: false,
+      encryptedAtRest: this.enabled && this.encryptionActive,
+      vaultBackend: this.keyManager.getBackendName(),
     };
+  }
+
+  public dispose(): void {
+    this.keyManager.dispose();
+    this.encryptionActive = false;
   }
 
   private ensureDataDir(): void {
@@ -241,6 +292,100 @@ export class CompanionPersistence {
 
   private getIndexPath(): string {
     return assertPathInsideDir(this.dataDir, join(this.dataDir, INDEX_FILENAME));
+  }
+
+  /**
+   * Atomically encrypts and writes a JSON document inside `dataDir` with AES-256-GCM + AAD.
+   * Fail-closed: throws if OS vault is unavailable; never writes plaintext.
+   */
+  public writeEncryptedJsonFile(fileName: string, purpose: string, value: unknown): void {
+    if (!this.enabled) return;
+    const key = this.requireKey();
+    try {
+      this.ensureDataDir();
+      const targetPath = assertPathInsideDir(this.dataDir, join(this.dataDir, fileName));
+      const encrypted = encryptJson(value, key, purpose);
+      writeFileAtomic(targetPath, encrypted);
+    } finally {
+      key.fill(0);
+    }
+  }
+
+  /**
+   * Reads and authenticates an encrypted JSON document inside `dataDir`.
+   * Returns `null` if the file does not exist. Throws `CryptoIntegrityError` on tampering/corruption.
+   */
+  public readEncryptedJsonFile<T = unknown>(fileName: string, purpose: string): T | null {
+    if (!this.enabled) return null;
+    const targetPath = assertPathInsideDir(this.dataDir, join(this.dataDir, fileName));
+    if (!existsSync(targetPath)) return null;
+    const key = this.requireKey();
+    try {
+      const raw = readFileNoFollow(targetPath);
+      return decryptJson<T>(raw, key, purpose);
+    } finally {
+      key.fill(0);
+    }
+  }
+
+  /**
+   * Safely migrates a legacy plaintext JSON file (e.g. `providers.json` -> `providers.enc.json`):
+   * 1. Reads and validates legacy JSON without modifying it.
+   * 2. Encrypts and writes the new `.enc.json` file atomically.
+   * 3. Re-reads and decrypts the new file to verify integrity & exact content match.
+   * 4. ONLY AFTER verified decryption succeeds, removes the legacy plaintext file.
+   */
+  public migrateLegacyJsonFile<T>(
+    legacyFileName: string,
+    encryptedFileName: string,
+    purpose: string,
+    normalize?: (parsed: Record<string, unknown>) => T,
+  ): LegacyFileMigrationResult<T> {
+    if (!this.enabled) return { migrated: false, data: null };
+
+    const legacyPath = assertPathInsideDir(this.dataDir, join(this.dataDir, legacyFileName));
+    const encPath = assertPathInsideDir(this.dataDir, join(this.dataDir, encryptedFileName));
+
+    if (!existsSync(legacyPath)) {
+      return { migrated: false, data: null };
+    }
+
+    // If encrypted file already exists and decrypts validly, remove leftover legacy file safely
+    if (existsSync(encPath)) {
+      const existingData = this.readEncryptedJsonFile<T>(encryptedFileName, purpose);
+      if (existingData !== null) {
+        assertNotSymlink(legacyPath);
+        unlinkSync(legacyPath);
+        return { migrated: true, data: existingData };
+      }
+    }
+
+    const key = this.requireKey();
+    try {
+      const rawLegacy = readFileNoFollow(legacyPath);
+      const parsed = JSON.parse(rawLegacy) as Record<string, unknown>;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error(`Legacy file ${legacyFileName} does not contain a JSON object.`);
+      }
+      const data = normalize ? normalize(parsed) : (parsed as unknown as T);
+
+      this.ensureDataDir();
+      const encrypted = encryptJson(data, key, purpose);
+      writeFileAtomic(encPath, encrypted);
+
+      // Verify round-trip decryption before deleting original legacy file
+      const writtenRaw = readFileNoFollow(encPath);
+      const verified = decryptJson<T>(writtenRaw, key, purpose);
+      if (JSON.stringify(verified) !== JSON.stringify(data)) {
+        throw new Error(`Migration verification mismatch for ${encryptedFileName}.`);
+      }
+
+      assertNotSymlink(legacyPath);
+      unlinkSync(legacyPath);
+      return { migrated: true, data: verified };
+    } finally {
+      key.fill(0);
+    }
   }
 
   private cleanupOrphanTempFiles(): number {
@@ -264,18 +409,24 @@ export class CompanionPersistence {
   }
 
   private flushIndex(): void {
-    this.ensureDataDir();
-    const doc: PersistedIndexDocument = {
-      version: 1,
-      entries: Array.from(this.entriesById.values()),
-    };
-    writeFileAtomic(this.getIndexPath(), JSON.stringify(doc, null, 2));
+    const key = this.requireKey();
+    try {
+      this.ensureDataDir();
+      const doc: PersistedIndexDocument = {
+        version: 1,
+        entries: Array.from(this.entriesById.values()),
+      };
+      const encrypted = encryptJson(doc, key, INDEX_PURPOSE);
+      writeFileAtomic(this.getIndexPath(), encrypted);
+    } finally {
+      key.fill(0);
+    }
   }
 
   /**
-   * Loads and validates persisted subtitle records from `dataDir`.
-   * Cleans orphan `.tmp.*` files left by interrupted writes, rejects symlinks,
-   * and skips corrupted records cleanly without crashing startup.
+   * Loads and validates persisted encrypted subtitle records from `dataDir`.
+   * Automatically and safely migrates legacy plaintext `index.json` + `.srt`/`.vtt` files
+   * (encrypting to new files and verifying decryption BEFORE deleting legacy plaintext files).
    */
   public loadAll(): PersistenceRecoveryResult {
     this.entriesById.clear();
@@ -285,77 +436,154 @@ export class CompanionPersistence {
     this.cleanedTempFiles = 0;
 
     if (!this.enabled) {
-      return { records: [], corruptedSkippedCount: 0, cleanedTempFiles: 0 };
+      return { records: [], corruptedSkippedCount: 0, cleanedTempFiles: 0, migratedLegacyCount: 0 };
     }
 
-    this.cleanedTempFiles = this.cleanupOrphanTempFiles();
-
-    const indexPath = this.getIndexPath();
-    if (!existsSync(indexPath)) {
-      return { records: [], corruptedSkippedCount: 0, cleanedTempFiles: this.cleanedTempFiles };
-    }
-
-    let parsedDoc: unknown;
+    const key = this.requireKey();
     try {
-      const rawIndex = readFileNoFollow(indexPath);
-      parsedDoc = JSON.parse(rawIndex);
-    } catch {
-      this.corruptedSkippedCount += 1;
-      return { records: [], corruptedSkippedCount: 1, cleanedTempFiles: this.cleanedTempFiles };
-    }
+      this.cleanedTempFiles = this.cleanupOrphanTempFiles();
 
-    if (
-      !parsedDoc ||
-      typeof parsedDoc !== 'object' ||
-      (parsedDoc as { version?: unknown }).version !== 1 ||
-      !Array.isArray((parsedDoc as { entries?: unknown }).entries)
-    ) {
-      this.corruptedSkippedCount += 1;
-      return { records: [], corruptedSkippedCount: 1, cleanedTempFiles: this.cleanedTempFiles };
-    }
-
-    const rawEntries = (parsedDoc as { entries: unknown[] }).entries;
-    const recovered: Array<{ record: CompanionSubtitleRecord; sampleLines: readonly string[] }> = [];
-
-    for (const rawEntry of rawEntries) {
-      const validated = this.recoverSingleEntry(rawEntry);
-      if (!validated) {
-        this.corruptedSkippedCount += 1;
-        continue;
+      const indexPath = this.getIndexPath();
+      if (!existsSync(indexPath)) {
+        return {
+          records: [],
+          corruptedSkippedCount: 0,
+          cleanedTempFiles: this.cleanedTempFiles,
+          migratedLegacyCount: 0,
+        };
       }
 
-      if (this.usedBytes + validated.record.byteLength > this.maxStorageBytes) {
-        this.corruptedSkippedCount += 1;
-        continue;
-      }
-
-      this.entriesById.set(validated.record.id, validated.indexEntry);
-      this.usedBytes += validated.record.byteLength;
-      recovered.push({ record: validated.record, sampleLines: validated.sampleLines });
-    }
-
-    this.recoveredCount = recovered.length;
-
-    // Rewrite index cleanly if corrupted entries were pruned
-    if (this.corruptedSkippedCount > 0) {
+      let rawIndex: string;
       try {
-        this.flushIndex();
+        rawIndex = readFileNoFollow(indexPath);
       } catch {
-        // Non-fatal during recovery
+        this.corruptedSkippedCount += 1;
+        return {
+          records: [],
+          corruptedSkippedCount: 1,
+          cleanedTempFiles: this.cleanedTempFiles,
+          migratedLegacyCount: 0,
+        };
       }
-    }
 
-    return {
-      records: recovered,
-      corruptedSkippedCount: this.corruptedSkippedCount,
-      cleanedTempFiles: this.cleanedTempFiles,
-    };
+      const isLegacyPlaintextIndex = !isEncryptedEnvelope(rawIndex);
+      let parsedDoc: unknown;
+      try {
+        parsedDoc = isLegacyPlaintextIndex
+          ? JSON.parse(rawIndex)
+          : decryptJson<PersistedIndexDocument>(rawIndex, key, INDEX_PURPOSE);
+      } catch {
+        this.corruptedSkippedCount += 1;
+        return {
+          records: [],
+          corruptedSkippedCount: 1,
+          cleanedTempFiles: this.cleanedTempFiles,
+          migratedLegacyCount: 0,
+        };
+      }
+
+      if (
+        !parsedDoc ||
+        typeof parsedDoc !== 'object' ||
+        (parsedDoc as { version?: unknown }).version !== 1 ||
+        !Array.isArray((parsedDoc as { entries?: unknown }).entries)
+      ) {
+        this.corruptedSkippedCount += 1;
+        return {
+          records: [],
+          corruptedSkippedCount: 1,
+          cleanedTempFiles: this.cleanedTempFiles,
+          migratedLegacyCount: 0,
+        };
+      }
+
+      const rawEntries = (parsedDoc as { entries: unknown[] }).entries;
+      const recovered: Array<{ record: CompanionSubtitleRecord; sampleLines: readonly string[] }> = [];
+      const legacyFilesToRemove: string[] = [];
+      let migratedLegacyCount = 0;
+
+      for (const rawEntry of rawEntries) {
+        const validated = this.recoverSingleEntry(rawEntry, key, isLegacyPlaintextIndex);
+        if (!validated) {
+          this.corruptedSkippedCount += 1;
+          continue;
+        }
+
+        if (this.usedBytes + validated.record.byteLength > this.maxStorageBytes) {
+          this.corruptedSkippedCount += 1;
+          continue;
+        }
+
+        let finalIndexEntry = validated.indexEntry;
+        if (validated.wasLegacyPlaintext) {
+          // Encrypt into a new random internal file and verify decryption BEFORE touching original
+          const newInternalFile = `${randomUUID()}.${validated.record.format}`;
+          const newFilePath = assertPathInsideDir(this.dataDir, join(this.dataDir, newInternalFile));
+          const encryptedContent = encryptText(
+            validated.record.content,
+            key,
+            subtitlePurpose(validated.record.id),
+          );
+          writeFileAtomic(newFilePath, encryptedContent);
+
+          // Verify round-trip decryption
+          const verifyDecrypted = decryptText(
+            readFileNoFollow(newFilePath),
+            key,
+            subtitlePurpose(validated.record.id),
+          );
+          if (verifyDecrypted !== validated.record.content) {
+            throw new Error('Subtitle migration verification failed.');
+          }
+
+          legacyFilesToRemove.push(validated.indexEntry.internalFile);
+          finalIndexEntry = { ...validated.indexEntry, internalFile: newInternalFile };
+          migratedLegacyCount += 1;
+        }
+
+        this.entriesById.set(validated.record.id, finalIndexEntry);
+        this.usedBytes += validated.record.byteLength;
+        recovered.push({ record: validated.record, sampleLines: validated.sampleLines });
+      }
+
+      this.recoveredCount = recovered.length;
+
+      // Atomically persist encrypted index (on migration or corrupted entry pruning)
+      if (isLegacyPlaintextIndex || migratedLegacyCount > 0 || this.corruptedSkippedCount > 0) {
+        this.flushIndex();
+        // Verify encrypted index decrypts cleanly before removing legacy plaintext subtitle files
+        const verifiedIndex = decryptJson<PersistedIndexDocument>(
+          readFileNoFollow(indexPath),
+          key,
+          INDEX_PURPOSE,
+        );
+        if (verifiedIndex.version === 1) {
+          for (const oldInternalFile of legacyFilesToRemove) {
+            this.safeDeleteFile(oldInternalFile);
+          }
+        }
+      }
+
+      return {
+        records: recovered,
+        corruptedSkippedCount: this.corruptedSkippedCount,
+        cleanedTempFiles: this.cleanedTempFiles,
+        migratedLegacyCount,
+      };
+    } finally {
+      key.fill(0);
+    }
   }
 
-  private recoverSingleEntry(rawEntry: unknown): {
+  private recoverSingleEntry(
+    rawEntry: unknown,
+    key: Buffer,
+    allowLegacyPlaintext: boolean,
+  ): {
     indexEntry: PersistedIndexEntry;
     record: CompanionSubtitleRecord;
     sampleLines: readonly string[];
+    wasLegacyPlaintext: boolean;
   } | null {
     if (!rawEntry || typeof rawEntry !== 'object') return null;
     const entry = rawEntry as Partial<PersistedIndexEntry>;
@@ -384,11 +612,26 @@ export class CompanionPersistence {
     const filePath = assertPathInsideDir(this.dataDir, join(this.dataDir, entry.internalFile));
     if (!existsSync(filePath)) return null;
 
-    let content: string;
+    let rawContent: string;
     try {
-      // Kernel-enforced O_NOFOLLOW prevents TOCTOU symlink escapes
-      content = readFileNoFollow(filePath);
+      rawContent = readFileNoFollow(filePath);
     } catch {
+      return null;
+    }
+
+    let content: string;
+    let wasLegacyPlaintext = false;
+    if (isEncryptedEnvelope(rawContent)) {
+      try {
+        content = decryptText(rawContent, key, subtitlePurpose(entry.id));
+      } catch {
+        return null;
+      }
+    } else if (allowLegacyPlaintext) {
+      content = rawContent;
+      wasLegacyPlaintext = true;
+    } else {
+      // Encrypted index must never silently accept unencrypted/tampered subtitle files
       return null;
     }
 
@@ -433,12 +676,13 @@ export class CompanionPersistence {
       indexEntry,
       record,
       sampleLines: parsed.cues.slice(0, 2).map((cue) => cue.text),
+      wasLegacyPlaintext,
     };
   }
 
   /**
-   * Persists a validated subtitle record atomically under a random internal UUID filename.
-   * Enforces the configured storage byte quota.
+   * Persists a validated subtitle record encrypted with AES-256-GCM under a random internal UUID.
+   * Enforces the configured storage byte quota. Fail-closed if OS vault is unavailable.
    */
   public saveRecord(record: CompanionSubtitleRecord): void {
     if (!this.enabled) return;
@@ -451,34 +695,40 @@ export class CompanionPersistence {
       );
     }
 
-    this.ensureDataDir();
+    const key = this.requireKey();
+    try {
+      this.ensureDataDir();
 
-    const internalFile = `${randomUUID()}.${record.format}`;
-    const filePath = assertPathInsideDir(this.dataDir, join(this.dataDir, internalFile));
-    writeFileAtomic(filePath, record.content);
+      const internalFile = `${randomUUID()}.${record.format}`;
+      const filePath = assertPathInsideDir(this.dataDir, join(this.dataDir, internalFile));
+      const encryptedContent = encryptText(record.content, key, subtitlePurpose(record.id));
+      writeFileAtomic(filePath, encryptedContent);
 
-    // Remove previous internal file if updating the same ID
-    if (existing) {
-      this.safeDeleteFile(existing.internalFile);
-      this.usedBytes = Math.max(0, this.usedBytes - existing.byteLength);
+      // Remove previous internal file if updating the same ID
+      if (existing) {
+        this.safeDeleteFile(existing.internalFile);
+        this.usedBytes = Math.max(0, this.usedBytes - existing.byteLength);
+      }
+
+      const indexEntry: PersistedIndexEntry = {
+        id: record.id,
+        contentId: record.contentId,
+        associationKind: record.associationKind,
+        language: record.language,
+        format: record.format,
+        filename: record.filename,
+        internalFile,
+        byteLength: record.byteLength,
+        cueCount: record.cueCount,
+        uploadedAt: record.uploadedAt,
+      };
+
+      this.entriesById.set(record.id, indexEntry);
+      this.usedBytes += record.byteLength;
+      this.flushIndex();
+    } finally {
+      key.fill(0);
     }
-
-    const indexEntry: PersistedIndexEntry = {
-      id: record.id,
-      contentId: record.contentId,
-      associationKind: record.associationKind,
-      language: record.language,
-      format: record.format,
-      filename: record.filename,
-      internalFile,
-      byteLength: record.byteLength,
-      cueCount: record.cueCount,
-      uploadedAt: record.uploadedAt,
-    };
-
-    this.entriesById.set(record.id, indexEntry);
-    this.usedBytes += record.byteLength;
-    this.flushIndex();
   }
 
   public deleteRecord(id: string): boolean {

@@ -17,6 +17,7 @@ import {
   COMPANION_TOKEN_HEADER,
   CompanionPersistence,
   CompanionSubtitleStore,
+  InMemoryKeyVault,
   assertNotSymlink,
   startStremioAddonServer,
   validateCompanionUpload,
@@ -63,7 +64,8 @@ afterEach(() => {
 describe('Sprint 12 — Release Readiness, Crash Recovery, Symlink Defense & Launchers', () => {
   it('cleans orphan .tmp.* files from interrupted writes while preserving valid persisted records', () => {
     const dataDir = createTempDir('subtitleme-s12-tmp-');
-    const p1 = new CompanionPersistence({ enabled: true, dataDir });
+    const keyVault = new InMemoryKeyVault();
+    const p1 = new CompanionPersistence({ enabled: true, dataDir, keyVault });
     const store1 = new CompanionSubtitleStore({ persistence: p1 });
 
     const up = validateCompanionUpload({
@@ -79,7 +81,7 @@ describe('Sprint 12 — Release Readiness, Crash Recovery, Symlink Defense & Lau
     writeFileSync(join(dataDir, 'index.json.tmp.deadbeef1234'), '{"partial', 'utf-8');
     writeFileSync(join(dataDir, 'orphan.srt.tmp.cafe12345678'), 'partial cue', 'utf-8');
 
-    const p2 = new CompanionPersistence({ enabled: true, dataDir });
+    const p2 = new CompanionPersistence({ enabled: true, dataDir, keyVault });
     const recovery = p2.loadAll();
     expect(recovery.cleanedTempFiles).toBe(2);
     expect(recovery.records).toHaveLength(1);

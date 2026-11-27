@@ -8,6 +8,7 @@ import {
   COMPANION_TOKEN_HEADER,
   CompanionPersistence,
   CompanionSubtitleStore,
+  InMemoryKeyVault,
   GeneratedSubtitleCache,
   LocalDiscoveryProvider,
   OpenSubtitlesDiscoveryProvider,
@@ -352,11 +353,12 @@ describe('Sprint 15.4 — Content Identification, Discovery Architecture & All 2
 
   it('Scenarios 14–20: full Stremio protocol HTTP E2E, cache, deletion, persistence off/on, restart recovery, and concurrent session isolation', async () => {
     const dataDir = createTempDir();
+    const keyVault = new InMemoryKeyVault();
 
     // Scenario 17: persistence disabled (memory-only)
     const memServer = await startStremioAddonServer({
       port: 0,
-      persistenceOptions: { enabled: false, dataDir },
+      persistenceOptions: { enabled: false, dataDir, keyVault },
     });
     try {
       const h = {
@@ -380,13 +382,13 @@ describe('Sprint 15.4 — Content Identification, Discovery Architecture & All 2
       await memServer.close();
     }
     // Verify nothing was written to disk when persistence disabled
-    const checkEmpty = new CompanionPersistence({ enabled: true, dataDir });
+    const checkEmpty = new CompanionPersistence({ enabled: true, dataDir, keyVault });
     expect(checkEmpty.loadAll().records).toHaveLength(0);
 
     // Scenario 18 & 16: persistence enabled + Companion restart recovery
     const s1 = await startStremioAddonServer({
       port: 0,
-      persistenceOptions: { enabled: true, dataDir },
+      persistenceOptions: { enabled: true, dataDir, keyVault },
     });
     let epEnId: string;
     try {
@@ -425,7 +427,7 @@ describe('Sprint 15.4 — Content Identification, Discovery Architecture & All 2
     // Restarted server recovers episode pair and serves real Stremio protocol request (Scenario 20)
     const s2 = await startStremioAddonServer({
       port: 0,
-      persistenceOptions: { enabled: true, dataDir },
+      persistenceOptions: { enabled: true, dataDir, keyVault },
     });
     try {
       expect(s2.companionStore.count()).toBe(2);
