@@ -6,7 +6,7 @@
 
 O monorepo reúne dois produtos independentes que compartilham o mesmo motor de parsing e merge:
 
-- **SubtitleMe Stremio Addon (`v1.0.0`)** — Addon + Local Companion (`127.0.0.1`) que combina duas legendas em uma única faixa bilíngue para o **Stremio Desktop**.
+- **SubtitleMe Stremio Addon (`v1.0.1`)** — Addon + Local Companion (`127.0.0.1`) que combina duas legendas em uma única faixa bilíngue para o **Stremio Desktop** ([Release oficial `v1.0.1`](https://github.com/Marquinhus0/SubtitleMe/releases/tag/v1.0.1)).
 - **SubtitleMe Chrome Extension (`v1.0.0 RC`)** — Extensão Chrome Manifest V3 que renderiza duas legendas simultâneas via Shadow DOM sobre players HTML5 compatíveis.
 
 ---
@@ -19,7 +19,7 @@ O SubtitleMe resolve isso localmente no seu computador: busca ou recebe duas leg
 
 ---
 
-## 2. Funcionalidades disponíveis (`v1.0.0`)
+## 2. Funcionalidades disponíveis (`v1.0.1`)
 
 - **37 idiomas suportados** com mapeamento BCP-47, ISO 639-2 e aliases nativos do Stremio (`Inglês`, `Português (Brasil)`, `Português (Portugal)`, `Espanhol`, `Francês`, `Alemão`, `Italiano`, `Japonês`, `Coreano`, `Chinês`, `Árabe`, `Russo`, `Holandês`, `Polonês`, `Turco`, entre outros).
 - **Motor multi-fonte configurável:**
@@ -56,18 +56,22 @@ Player do Stremio exibe os dois idiomas simultaneamente
 
 ## 4. Requisitos
 
-- **Node.js:** `>= 22.0.0` (ambiente principal validado na `v1.0.0`: **Windows 11 X64** com **Node.js `v24.19.0`**).
+- **Node.js:** `>= 22.0.0` (ambiente principal validado na `v1.0.1`: **Windows 11 X64** com **Node.js `v24.19.0`**).
 - **Player:** **Stremio Desktop** no mesmo computador (validado na versão **`5.0.28`**).
 - **Rede:** necessária apenas para consultar provedores externos opcionais (OpenSubtitles v3, Subtitle Sync ou OpenSubtitles REST API v1). O servidor local **nunca** se expõe à rede local (`0.0.0.0` é bloqueado).
 
 ---
 
-## 5. Instalação rápida (Stremio Addon `v1.0.0`)
+## 5. Instalação rápida (Stremio Addon `v1.0.1`)
 
-1. Extraia o pacote standalone `subtitleme-stremio-v1.0.0.tar.gz` em uma pasta local:
+- **Release oficial:** [v1.0.1 no GitHub](https://github.com/Marquinhus0/SubtitleMe/releases/tag/v1.0.1)
+- **Download direto:** [`subtitleme-stremio-v1.0.1.tar.gz`](https://github.com/Marquinhus0/SubtitleMe/releases/download/v1.0.1/subtitleme-stremio-v1.0.1.tar.gz) · [Arquivo `.sha256`](https://github.com/Marquinhus0/SubtitleMe/releases/download/v1.0.1/subtitleme-stremio-v1.0.1.sha256)
+- **SHA-256 esperado:** `ae0c27694b609c9585266af4a8f72f55a9e1412e78a58a1be2c6061a08b40e5d`
+
+1. Baixe e extraia o pacote standalone `subtitleme-stremio-v1.0.1.tar.gz` em uma pasta local:
    ```powershell
    mkdir subtitleme-stremio
-   tar -xzf subtitleme-stremio-v1.0.0.tar.gz -C subtitleme-stremio
+   tar -xzf subtitleme-stremio-v1.0.1.tar.gz -C subtitleme-stremio
    cd subtitleme-stremio
    ```
 2. Inicie o Local Companion:
@@ -104,11 +108,11 @@ Detalhes completos em [docs/PRIVACY_AND_SECURITY.md](docs/PRIVACY_AND_SECURITY.m
 
 ## 8. Limitações conhecidas
 
-- **Windows 11 X64** é a plataforma primária validada na `v1.0.0` (Stremio Desktop `5.0.28`, Node.js `v24.19.0`).
-- **Linux** teve a instalação limpa do Companion CLI validada na `v1.0.0` (Node.js `v22.23.5`), porém a renderização visual no Stremio Desktop Linux não foi validada; **macOS não foi validado**.
+- **Windows 11 X64** é a plataforma primária validada na `v1.0.1` (Stremio Desktop `5.0.28`, Node.js `v24.19.0`).
+- **Linux** teve a instalação limpa do Companion CLI validada em RCs anteriores (Node.js `v22.23.5`), porém a renderização visual no Stremio Desktop Linux não foi validada; **macOS não foi validado**.
 - **Android, Android TV, Google TV, Smart TVs e iOS não são suportados**, pois o Companion opera exclusivamente em `127.0.0.1`.
 - **Stremio Web (`https://web.stremio.com`)** só funciona no mesmo computador com navegador que suporte Private Network Access (PNA) para `http://127.0.0.1`.
-- **Extensão Chrome (`v1.0.0 RC`) e Stremio Addon (`v1.0.0` GA) são independentes** e não compartilham automaticamente arquivos salvos no IndexedDB do navegador.
+- **Extensão Chrome (`v1.0.0 RC`) e Stremio Addon (`v1.0.1` GA) são independentes** e não compartilham automaticamente arquivos salvos no IndexedDB do navegador.
 
 ---
 
@@ -126,7 +130,7 @@ Veja todas as respostas em [docs/FAQ.md](docs/FAQ.md).
 
 ```text
 apps/
-  stremio-addon/       # Stremio Addon + Local Companion v1.0.0 (Node.js 22+ + Stremio SDK)
+  stremio-addon/       # Stremio Addon + Local Companion v1.0.1 (Node.js 22+ + Stremio SDK)
   chrome-extension/    # Chrome Manifest V3 extension v1.0.0 RC (Vue 3 + Pinia + Tailwind + Vite)
   landing-page/        # Landing page estática para GitHub Pages (Vue 3 + TypeScript + Vite)
 assets/
@@ -172,7 +176,7 @@ O código-fonte e os assets próprios do SubtitleMe são distribuídos sob a **L
 
 - [Guia de Instalação (Windows, Linux e macOS)](docs/INSTALLATION.md)
 - [Guia de Utilização (`v1.0.0`)](docs/USER_GUIDE.md)
-- [Privacidade e Segurança](docs/PRIVACY_AND_SECURITY.md) · [Advisories Transitivos (`v1.0.0` → `v1.0.1`)](docs/SECURITY_ADVISORIES_V1_0_0.md)
+- [Privacidade e Segurança](docs/PRIVACY_AND_SECURITY.md) · [Advisories Transitivos (`v1.0.0` → corrigidos na `v1.0.1`)](docs/SECURITY_ADVISORIES_V1_0_0.md)
 - [Perguntas Frequentes e Troubleshooting (FAQ)](docs/FAQ.md)
 - [Quickstart Operacional (pacote standalone)](apps/stremio-addon/QUICKSTART.md)
 - [Identidade Visual e Diretrizes de Marca](docs/BRAND_IDENTITY.md) · [Apoio Voluntário](docs/SUPPORT_AND_DONATIONS.md)

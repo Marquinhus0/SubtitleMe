@@ -1,28 +1,28 @@
-# Guia de Instalação — SubtitleMe (`v1.0.0`)
+# Guia de Instalação — SubtitleMe (`v1.0.1`)
 
-Este guia cobre a instalação do **SubtitleMe Stremio Addon (`v1.0.0`)** a partir do pacote standalone `subtitleme-stremio-v1.0.0.tar.gz` (com instruções separadas por sistema operacional) e preserva as instruções da **Extensão Chrome (`v1.0.0 RC`)** ao final.
+Este guia cobre a instalação do **SubtitleMe Stremio Addon (`v1.0.1`)** a partir do pacote standalone oficial [`subtitleme-stremio-v1.0.1.tar.gz`](https://github.com/Marquinhus0/SubtitleMe/releases/download/v1.0.1/subtitleme-stremio-v1.0.1.tar.gz) ([Release oficial `v1.0.1`](https://github.com/Marquinhus0/SubtitleMe/releases/tag/v1.0.1) · [Checksum `.sha256`](https://github.com/Marquinhus0/SubtitleMe/releases/download/v1.0.1/subtitleme-stremio-v1.0.1.sha256)), instruções de atualização a partir da `v1.0.0` e preserva as instruções da **Extensão Chrome (`v1.0.0 RC`)** ao final.
 
 ---
 
 ## 1. Windows (Plataforma Principal Validada)
 
-Ambiente validado na `v1.0.0`: **Windows 11 X64**, **Node.js `v24.19.0`** (requisito mínimo: `>= 22.0.0`) e **Stremio Desktop `5.0.28`**.
+Ambiente validado na `v1.0.1`: **Windows 11 X64**, **Node.js `v24.19.0`** (requisito mínimo: `>= 22.0.0`) e **Stremio Desktop `5.0.28`**.
 
 ### 1.1 Requisitos
 - **Node.js `>= 22.0.0`** instalado e disponível no `PATH` (`node --version`).
 - **Stremio Desktop** instalado no mesmo computador.
-- O pacote standalone `subtitleme-stremio-v1.0.0.tar.gz` já inclui todas as dependências de produção (`node_modules/`), não exigindo `npm install` nem Docker.
+- O pacote standalone `subtitleme-stremio-v1.0.1.tar.gz` já inclui todas as dependências de produção (`node_modules/`), não exigindo `npm install` nem Docker.
 
-### 1.2 Extração do pacote (e verificação opcional de integridade)
-No Prompt de Comando ou PowerShell:
+### 1.2 Download, verificação de integridade (SHA-256) e extração
+Baixe [`subtitleme-stremio-v1.0.1.tar.gz`](https://github.com/Marquinhus0/SubtitleMe/releases/download/v1.0.1/subtitleme-stremio-v1.0.1.tar.gz) na página da [Release `v1.0.1`](https://github.com/Marquinhus0/SubtitleMe/releases/tag/v1.0.1). No Prompt de Comando ou PowerShell:
 
 ```powershell
-# Opcional: verificar integridade SHA-256
-Get-FileHash -Algorithm SHA256 .\subtitleme-stremio-v1.0.0.tar.gz
-# Esperado: 7F298F2B792615EC8AE476FDF7D8E0AC35FA4AE494D25D945AD74313913261FD
+# Verificar integridade SHA-256 (recomendado)
+(Get-FileHash -Algorithm SHA256 .\subtitleme-stremio-v1.0.1.tar.gz).Hash.ToLower()
+# Esperado: ae0c27694b609c9585266af4a8f72f55a9e1412e78a58a1be2c6061a08b40e5d
 
 mkdir subtitleme-stremio
-tar -xzf subtitleme-stremio-v1.0.0.tar.gz -C subtitleme-stremio
+tar -xzf subtitleme-stremio-v1.0.1.tar.gz -C subtitleme-stremio
 cd subtitleme-stremio
 ```
 
@@ -68,17 +68,23 @@ node .\dist\index.mjs
 
 ### 1.6 Verificação de funcionamento
 - `http://127.0.0.1:7000/companion/health` deve retornar `{"ok":true,"service":"subtitleme-local-companion","host":"127.0.0.1","localOnly":true,...}`.
-- `http://127.0.0.1:7000/manifest.json` deve retornar o manifesto JSON com `"id":"com.subtitleme.addon"` e `"version":"1.0.0"`.
+- `http://127.0.0.1:7000/manifest.json` deve retornar o manifesto JSON com `"id":"com.subtitleme.addon"` e `"version":"1.0.1"`.
 - No Stremio Desktop, reproduza um filme ou episódio e confirme a presença de faixas `Dual ...` no menu de legendas.
 
 ### 1.7 Encerramento
 Na janela do terminal onde o Companion está rodando, pressione **`Ctrl + C`**. O servidor executa encerramento gracioso (`SIGINT`), libera a porta `127.0.0.1:7000` e limpa o cache temporário em memória.
 
+### 1.8 Atualização a partir da `v1.0.0`
+1. Encerre o Local Companion em execução (`Ctrl + C`).
+2. Baixe [`subtitleme-stremio-v1.0.1.tar.gz`](https://github.com/Marquinhus0/SubtitleMe/releases/download/v1.0.1/subtitleme-stremio-v1.0.1.tar.gz) e confirme o SHA-256 `ae0c27694b609c9585266af4a8f72f55a9e1412e78a58a1be2c6061a08b40e5d`.
+3. Extraia o pacote em uma pasta limpa e inicie normalmente (`.\bin\start-companion.cmd`).
+4. **Não é necessário reinstalar o addon no Stremio Desktop** — configurações persistidas com `SUBTITLEME_PERSISTENCE=1` em `%USERPROFILE%\.subtitleme\stremio-companion` continuam 100% compatíveis.
+
 ---
 
 ## 2. Linux (`Partially Tested`)
 
-> **Nota de compatibilidade:** O launcher `./bin/start-companion.sh` e a execução nativa em Linux foram validados em versões RC anteriores (`1.0.0-rc.1` a `1.0.0-rc.3` em Linux X64 com Node.js `v22.23.5`), porém **não foram reexecutados na `v1.0.0` final** e o **Stremio Desktop no Linux não foi testado visualmente**.
+> **Nota de compatibilidade:** O launcher `./bin/start-companion.sh` e a execução nativa em Linux foram validados em versões RC anteriores (`1.0.0-rc.1` a `1.0.0-rc.3` em Linux X64 com Node.js `v22.23.5`), porém **não foram reexecutados na `v1.0.1`** e o **Stremio Desktop no Linux não foi testado visualmente**.
 
 ### 2.1 Requisitos
 - **Node.js `>= 22.0.0`** (`node --version`).
@@ -86,8 +92,11 @@ Na janela do terminal onde o Companion está rodando, pressione **`Ctrl + C`**. 
 
 ### 2.2 Extração, permissões e inicialização
 ```bash
+# Opcional: verificar integridade SHA-256
+echo "ae0c27694b609c9585266af4a8f72f55a9e1412e78a58a1be2c6061a08b40e5d  subtitleme-stremio-v1.0.1.tar.gz" | sha256sum -c -
+
 mkdir -p subtitleme-stremio
-tar -xzf subtitleme-stremio-v1.0.0.tar.gz -C subtitleme-stremio
+tar -xzf subtitleme-stremio-v1.0.1.tar.gz -C subtitleme-stremio
 cd subtitleme-stremio
 chmod +x ./bin/start-companion.sh
 ./bin/start-companion.sh
@@ -109,7 +118,7 @@ SUBTITLEME_PERSISTENCE=1 PORT=7000 ./bin/start-companion.sh
 
 ## 3. macOS (`Não Validado`)
 
-**O macOS não foi validado nem testado em nenhuma etapa da release `v1.0.0`.**
+**O macOS não foi validado nem testado em nenhuma etapa das releases `v1.0.0` / `v1.0.1`.**
 
 Por política de transparência do projeto, não fornecemos instruções de instalação para macOS como se houvesse compatibilidade confirmada. O pacote inclui um script POSIX (`./bin/start-companion.sh`), mas o suporte oficial a macOS permanece **não declarado (`Not Tested`)**.
 

@@ -7,7 +7,7 @@ import {
   buildSupportChannels,
   resolveOfficialSupportUrl,
 } from '../../apps/landing-page/src/config/supportConfig';
-import { SUPPORT_CHANNELS } from '../../apps/landing-page/src/data/siteContent';
+import { RELEASE_INFO, SUPPORT_CHANNELS } from '../../apps/landing-page/src/data/siteContent';
 
 describe('Sprint 18.2.2 & 18.2.3 — SubtitleMe Landing Page & Donations', () => {
   it('renders all 9 required sections with semantic landmarks and single H1', () => {
@@ -112,5 +112,31 @@ describe('Sprint 18.2.2 & 18.2.3 — SubtitleMe Landing Page & Donations', () =>
       expect(link.attributes('rel')).toBe('noopener noreferrer');
       expect(link.attributes('aria-label')).toContain('abre em nova aba');
     }
+  });
+
+  it('publishes official v1.0.1 release metadata, download URLs, and SHA-256 checksum', () => {
+    expect(RELEASE_INFO.version).toBe('1.0.1');
+    expect(RELEASE_INFO.tag).toBe('v1.0.1');
+    expect(RELEASE_INFO.tarball).toBe('subtitleme-stremio-v1.0.1.tar.gz');
+    expect(RELEASE_INFO.sha256).toBe(
+      'ae0c27694b609c9585266af4a8f72f55a9e1412e78a58a1be2c6061a08b40e5d',
+    );
+    expect(RELEASE_INFO.releaseUrl).toBe(
+      'https://github.com/Marquinhus0/SubtitleMe/releases/tag/v1.0.1',
+    );
+    expect(RELEASE_INFO.downloadUrl).toBe(
+      'https://github.com/Marquinhus0/SubtitleMe/releases/download/v1.0.1/subtitleme-stremio-v1.0.1.tar.gz',
+    );
+    expect(RELEASE_INFO.checksumUrl).toBe(
+      'https://github.com/Marquinhus0/SubtitleMe/releases/download/v1.0.1/subtitleme-stremio-v1.0.1.sha256',
+    );
+
+    const wrapper = mount(App);
+    const installHtml = wrapper.find('#instalacao').html();
+    expect(installHtml).toContain(RELEASE_INFO.downloadUrl);
+    expect(installHtml).toContain(RELEASE_INFO.releaseUrl);
+    expect(installHtml).toContain(RELEASE_INFO.checksumUrl);
+    expect(installHtml).toContain(RELEASE_INFO.sha256);
+    expect(installHtml).not.toContain('7f298f2b792615ec8ae476fdf7d8e0ac35fa4ae494d25d945ad74313913261fd');
   });
 });

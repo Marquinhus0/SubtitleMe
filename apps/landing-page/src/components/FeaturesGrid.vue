@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FEATURES } from '../data/siteContent';
+import { FEATURES, RELEASE_INFO } from '../data/siteContent';
 </script>
 
 <template>
@@ -9,7 +9,7 @@ import { FEATURES } from '../data/siteContent';
         <span class="section-kicker">Principais funcionalidades</span>
         <h2 class="section-title">Construído para imersão real em idiomas, sem distrações.</h2>
         <p class="section-lead">
-          Cada recurso da versão 1.0.0 foi projetado para entregar sincronização confiável, leitura
+          Cada recurso da versão {{ RELEASE_INFO.version }} foi projetado para entregar sincronização confiável, leitura
           confortável e controle completo no SubtitleMe Studio.
         </p>
       </div>

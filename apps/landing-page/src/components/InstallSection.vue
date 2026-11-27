@@ -134,10 +134,34 @@ async function copyText(key: string, text: string) {
 
           <div class="install-links">
             <a
-              :href="DOC_LINKS.installation"
+              :href="RELEASE_INFO.downloadUrl"
               target="_blank"
               rel="noopener noreferrer"
               class="btn btn--primary"
+            >
+              Baixar {{ RELEASE_INFO.tag }} (.tar.gz)
+            </a>
+            <a
+              :href="RELEASE_INFO.releaseUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn btn--secondary"
+            >
+              Release {{ RELEASE_INFO.tag }}
+            </a>
+            <a
+              :href="RELEASE_INFO.checksumUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn btn--secondary"
+            >
+              Arquivo .sha256
+            </a>
+            <a
+              :href="DOC_LINKS.installation"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn btn--secondary"
             >
               Guia Completo de Instalação
             </a>

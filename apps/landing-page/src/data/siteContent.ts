@@ -3,10 +3,13 @@ import { buildSupportChannels, type SupportChannel } from '../config/supportConf
 export const REPO_URL = 'https://github.com/Marquinhus0/SubtitleMe';
 
 export const RELEASE_INFO = {
-  version: '1.0.0',
-  tag: 'v1.0.0',
-  tarball: 'subtitleme-stremio-v1.0.0.tar.gz',
-  sha256: '7f298f2b792615ec8ae476fdf7d8e0ac35fa4ae494d25d945ad74313913261fd',
+  version: '1.0.1',
+  tag: 'v1.0.1',
+  tarball: 'subtitleme-stremio-v1.0.1.tar.gz',
+  sha256: 'ae0c27694b609c9585266af4a8f72f55a9e1412e78a58a1be2c6061a08b40e5d',
+  releaseUrl: `${REPO_URL}/releases/tag/v1.0.1`,
+  downloadUrl: `${REPO_URL}/releases/download/v1.0.1/subtitleme-stremio-v1.0.1.tar.gz`,
+  checksumUrl: `${REPO_URL}/releases/download/v1.0.1/subtitleme-stremio-v1.0.1.sha256`,
   studioUrl: 'http://127.0.0.1:7000/configure',
   manifestUrl: 'http://127.0.0.1:7000/manifest.json',
 } as const;
@@ -42,7 +45,7 @@ export const HOW_IT_WORKS_STEPS: StepItem[] = [
     number: '01',
     title: 'Inicie o Local Companion',
     description:
-      'Extraia o pacote standalone v1.0.0 e execute o launcher local. O servidor sobe apenas em 127.0.0.1:7000 no seu computador.',
+      'Extraia o pacote standalone v1.0.1 e execute o launcher local. O servidor sobe apenas em 127.0.0.1:7000 no seu computador.',
   },
   {
     number: '02',
@@ -233,7 +236,7 @@ export const COMPATIBILITY_ROWS: CompatibilityRow[] = [
   {
     platform: 'Windows 11 X64 + Stremio Desktop 5.0.28',
     status: 'valid',
-    label: 'Validado (GA v1.0.0)',
+    label: 'Validado (GA v1.0.1)',
     notes: 'Plataforma primária validada ponta a ponta com Node.js 22+ (testado em v24.19.0).',
   },
   {
@@ -246,7 +249,7 @@ export const COMPATIBILITY_ROWS: CompatibilityRow[] = [
     platform: 'macOS',
     status: 'partial',
     label: 'Não validado',
-    notes: 'Ainda não testado em hardware macOS na v1.0.0.',
+    notes: 'Ainda não testado em hardware macOS na v1.0.1.',
   },
   {
     platform: 'Android, Android TV, iOS e Smart TVs',
@@ -301,6 +304,6 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     question: 'Qual é o status da Extensão Chrome do SubtitleMe?',
     answer:
-      'A Extensão Chrome (Manifest V3) está em estágio v1.0.0 RC no monorepo e ainda não foi publicada oficialmente na Chrome Web Store. O lançamento público atual foca no Stremio Addon v1.0.0.',
+      'A Extensão Chrome (Manifest V3) está em estágio v1.0.0 RC no monorepo e ainda não foi publicada oficialmente na Chrome Web Store. O lançamento público atual foca no Stremio Addon v1.0.1.',
   },
 ];
