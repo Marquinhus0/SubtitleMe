@@ -189,7 +189,7 @@
 .sm-badge-primary {
   background-color: var(--sm-primary-muted);
   border-color: rgba(139, 124, 255, 0.35);
-  color: var(--sm-primary);
+  color: var(--sm-primary-text);
 }
 
 .sm-badge-secondary {

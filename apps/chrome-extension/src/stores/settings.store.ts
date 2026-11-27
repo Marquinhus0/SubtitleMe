@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import {
   cloneDefaultSettings,
   validateSettings,
@@ -36,6 +36,16 @@ export const useSettingsStore = defineStore('settings', () => {
   const saving = ref(false);
   const storageError = ref<string | null>(null);
   const lastValidationErrors = ref<string[]>([]);
+
+  watch(
+    () => settings.value.general.uiLanguage,
+    (lang) => {
+      if (typeof document !== 'undefined' && document.documentElement) {
+        document.documentElement.lang = lang;
+      }
+    },
+    { immediate: true },
+  );
 
   async function persistCurrent(): Promise<boolean> {
     const validation = validateSettings(settings.value);

@@ -165,6 +165,8 @@ function openPicker(): void {
         ref="inputRef"
         type="file"
         accept=".srt,.vtt"
+        tabindex="-1"
+        aria-hidden="true"
         class="sr-only"
         :disabled="disabled || saving"
         @change="onInputChange"
@@ -174,8 +176,9 @@ function openPicker(): void {
     <template v-else>
       <div
         role="button"
-        tabindex="0"
+        :tabindex="disabled || saving ? -1 : 0"
         :aria-disabled="disabled || saving"
+        :aria-busy="status === 'processing' || saving"
         :aria-label="t('importer.dropPrompt')"
         class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-6 text-center transition-colors"
         :style="{
@@ -203,6 +206,8 @@ function openPicker(): void {
         ref="inputRef"
         type="file"
         accept=".srt,.vtt"
+        tabindex="-1"
+        aria-hidden="true"
         class="sr-only"
         :disabled="disabled || saving"
         @change="onInputChange"

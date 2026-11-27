@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useId } from 'vue';
 import { SETTINGS_CONSTRAINTS, type SubtitleSlot } from '@subtitleme/shared-types';
 import { useI18n } from '../i18n';
 import RangeSlider from './RangeSlider.vue';
@@ -25,6 +26,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const visibilityLabelId = useId();
 
 function formatOffset(ms: number): string {
   if (ms === 0) return '0 ms';
@@ -40,10 +42,10 @@ function formatOffset(ms: number): string {
 
     <!-- Track visibility pills -->
     <div class="flex flex-col gap-1.5">
-      <span class="text-xs font-medium" style="color: var(--sm-text-secondary)">
+      <span :id="visibilityLabelId" class="text-xs font-medium" style="color: var(--sm-text-secondary)">
         {{ t('popup.visibility') }}
       </span>
-      <div class="grid grid-cols-2 gap-2">
+      <div role="group" :aria-labelledby="visibilityLabelId" class="grid grid-cols-2 gap-2">
         <button
           type="button"
           class="sm-btn"
@@ -112,6 +114,7 @@ function formatOffset(ms: number): string {
             class="sm-btn sm-btn-ghost min-w-[62px] px-1.5 py-1 font-mono text-[11px] tabular-nums"
             :disabled="disabled || primaryOffsetMs === 0"
             :title="t('settings.sync.resetOffset')"
+            :aria-label="`${t('settings.sync.resetOffset')} (${t('popup.primaryOffset')}: ${formatOffset(primaryOffsetMs)})`"
             @click="emit('reset:offset', 'primary')"
           >
             {{ formatOffset(primaryOffsetMs) }}
@@ -145,6 +148,7 @@ function formatOffset(ms: number): string {
             class="sm-btn sm-btn-ghost min-w-[62px] px-1.5 py-1 font-mono text-[11px] tabular-nums"
             :disabled="disabled || secondaryOffsetMs === 0"
             :title="t('settings.sync.resetOffset')"
+            :aria-label="`${t('settings.sync.resetOffset')} (${t('popup.secondaryOffset')}: ${formatOffset(secondaryOffsetMs)})`"
             @click="emit('reset:offset', 'secondary')"
           >
             {{ formatOffset(secondaryOffsetMs) }}

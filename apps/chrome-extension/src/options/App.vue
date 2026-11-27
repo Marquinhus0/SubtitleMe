@@ -228,7 +228,7 @@ onMounted(async () => {
                 backgroundColor:
                   activeSection === item.id ? 'var(--sm-primary-muted)' : 'transparent',
                 color:
-                  activeSection === item.id ? 'var(--sm-primary)' : 'var(--sm-text-secondary)',
+                  activeSection === item.id ? 'var(--sm-primary-text)' : 'var(--sm-text-secondary)',
               }"
               @click="activeSection = item.id"
             >
@@ -318,7 +318,7 @@ onMounted(async () => {
                 class="sm-btn sm-btn-ghost"
                 @click="confirmReset = false"
               >
-                {{ t('common.reset') }}
+                {{ t('importer.cancelImport') }}
               </button>
             </div>
             <p v-if="resetFeedback" role="status" class="sm-alert sm-alert-success">
@@ -447,10 +447,10 @@ onMounted(async () => {
             </div>
 
             <div class="flex flex-col gap-1.5">
-              <span class="text-xs font-medium" style="color: var(--sm-text-secondary)">
+              <span id="appearance-position-label" class="text-xs font-medium" style="color: var(--sm-text-secondary)">
                 {{ t('settings.appearance.position') }}
               </span>
-              <div class="grid grid-cols-2 gap-2">
+              <div role="group" aria-labelledby="appearance-position-label" class="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   class="sm-btn"
@@ -600,6 +600,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="sm-btn sm-btn-secondary"
+                :aria-label="`${t('settings.sync.primaryOffset')} -500 ms`"
                 @click="settingsStore.adjustOffset('primary', -500)"
               >
                 -500 ms
@@ -607,6 +608,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="sm-btn sm-btn-secondary"
+                :aria-label="`${t('settings.sync.primaryOffset')} -100 ms`"
                 @click="settingsStore.adjustOffset('primary', -100)"
               >
                 -100 ms
@@ -614,6 +616,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="sm-btn sm-btn-secondary"
+                :aria-label="`${t('settings.sync.primaryOffset')} +100 ms`"
                 @click="settingsStore.adjustOffset('primary', 100)"
               >
                 +100 ms
@@ -621,6 +624,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="sm-btn sm-btn-secondary"
+                :aria-label="`${t('settings.sync.primaryOffset')} +500 ms`"
                 @click="settingsStore.adjustOffset('primary', 500)"
               >
                 +500 ms
@@ -628,6 +632,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="sm-btn sm-btn-ghost ml-auto"
+                :aria-label="`${t('settings.sync.resetOffset')} (${t('settings.sync.primaryOffset')})`"
                 :disabled="settingsStore.settings.sync.primaryOffsetMs === 0"
                 @click="settingsStore.resetOffset('primary')"
               >
@@ -651,6 +656,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="sm-btn sm-btn-secondary"
+                :aria-label="`${t('settings.sync.secondaryOffset')} -500 ms`"
                 @click="settingsStore.adjustOffset('secondary', -500)"
               >
                 -500 ms
@@ -658,6 +664,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="sm-btn sm-btn-secondary"
+                :aria-label="`${t('settings.sync.secondaryOffset')} -100 ms`"
                 @click="settingsStore.adjustOffset('secondary', -100)"
               >
                 -100 ms
@@ -665,6 +672,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="sm-btn sm-btn-secondary"
+                :aria-label="`${t('settings.sync.secondaryOffset')} +100 ms`"
                 @click="settingsStore.adjustOffset('secondary', 100)"
               >
                 +100 ms
@@ -672,6 +680,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="sm-btn sm-btn-secondary"
+                :aria-label="`${t('settings.sync.secondaryOffset')} +500 ms`"
                 @click="settingsStore.adjustOffset('secondary', 500)"
               >
                 +500 ms
@@ -679,6 +688,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="sm-btn sm-btn-ghost ml-auto"
+                :aria-label="`${t('settings.sync.resetOffset')} (${t('settings.sync.secondaryOffset')})`"
                 :disabled="settingsStore.settings.sync.secondaryOffsetMs === 0"
                 @click="settingsStore.resetOffset('secondary')"
               >
@@ -826,6 +836,8 @@ onMounted(async () => {
                   <button
                     type="button"
                     class="sm-btn sm-btn-secondary"
+                    :aria-expanded="previewRecordId === item.id"
+                    :aria-label="`${previewRecordId === item.id ? t('settings.localFiles.hidePreview') : t('settings.localFiles.preview')} — ${item.fileName}`"
                     @click="previewRecordId = previewRecordId === item.id ? null : item.id"
                   >
                     {{
@@ -855,6 +867,7 @@ onMounted(async () => {
                   <button
                     type="button"
                     class="sm-btn sm-btn-danger"
+                    :aria-label="`${confirmRemoveId === item.id ? t('settings.localFiles.confirmRemove') : t('common.remove')} — ${item.fileName}`"
                     @click="handleRemoveRecord(item.id)"
                   >
                     {{
@@ -935,8 +948,8 @@ onMounted(async () => {
             <table class="w-full border-collapse text-left text-xs">
               <thead>
                 <tr style="background-color: var(--sm-surface-elevated); color: var(--sm-text-secondary)">
-                  <th class="px-4 py-2.5 font-medium">{{ t('settings.shortcuts.actionHeader') }}</th>
-                  <th class="px-4 py-2.5 text-right font-medium">{{ t('settings.shortcuts.keysHeader') }}</th>
+                  <th scope="col" class="px-4 py-2.5 font-medium">{{ t('settings.shortcuts.actionHeader') }}</th>
+                  <th scope="col" class="px-4 py-2.5 text-right font-medium">{{ t('settings.shortcuts.keysHeader') }}</th>
                 </tr>
               </thead>
               <tbody>

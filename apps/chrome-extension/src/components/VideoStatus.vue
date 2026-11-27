@@ -75,7 +75,7 @@ const hasActiveVideo = computed(
 </script>
 
 <template>
-  <section class="sm-card p-3" aria-live="polite">
+  <section class="sm-card p-3">
     <div class="flex items-center justify-between gap-2">
       <div class="flex items-center gap-2">
         <span class="text-xs font-semibold tracking-wide uppercase" style="color: var(--sm-text-secondary)">
@@ -89,13 +89,14 @@ const hasActiveVideo = computed(
         type="button"
         class="sm-btn sm-btn-ghost px-2 py-1 text-[11px]"
         :disabled="connectionState === 'checking'"
+        :aria-busy="connectionState === 'checking'"
         @click="emit('refresh')"
       >
         {{ t('common.refresh') }}
       </button>
     </div>
 
-    <p class="mt-2 text-xs leading-relaxed" style="color: var(--sm-text-secondary)">
+    <p class="mt-2 text-xs leading-relaxed" style="color: var(--sm-text-secondary)" aria-live="polite" aria-atomic="true">
       {{ statusMessage }}
     </p>
 

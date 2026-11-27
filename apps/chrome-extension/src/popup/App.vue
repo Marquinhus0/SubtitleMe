@@ -120,7 +120,7 @@ onMounted(async () => {
     <section class="sm-card flex flex-col gap-2.5 p-3">
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2">
-          <span class="h-2 w-2 rounded-full" style="background-color: var(--sm-primary)" />
+          <span aria-hidden="true" class="h-2 w-2 rounded-full" style="background-color: var(--sm-primary)" />
           <h2 class="text-xs font-semibold" style="color: var(--sm-text-primary)">
             {{ t('popup.primarySubtitle') }}
           </h2>
@@ -181,7 +181,7 @@ onMounted(async () => {
     <section class="sm-card flex flex-col gap-2.5 p-3">
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2">
-          <span class="h-2 w-2 rounded-full" style="background-color: var(--sm-secondary)" />
+          <span aria-hidden="true" class="h-2 w-2 rounded-full" style="background-color: var(--sm-secondary)" />
           <h2 class="text-xs font-semibold" style="color: var(--sm-text-primary)">
             {{ t('popup.secondarySubtitle') }}
           </h2>
