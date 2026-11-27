@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import http from 'node:http';
 import {
   accessSync,
@@ -15,6 +14,7 @@ import { homedir, tmpdir } from 'node:os';
 import path, { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from 'playwright-core';
+import { extractZipSafely, FORBIDDEN_RELEASE_PATTERNS } from '../../scripts/zip-utils.mjs';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(currentDir, '../..');
@@ -238,15 +238,56 @@ async function getShadowSubtitleText(page, containerSelector) {
   }, containerSelector);
 }
 
+/**
+ * Safely extracts and validates a Chrome Extension release ZIP into an isolated temp directory
+ * without depending on external `unzip` binaries.
+ * Validates ZIP integrity, blocks path traversal and forbidden files, and checks manifest + required runtime files.
+ */
+export function prepareReleaseZipForE2E(rawZipPath, baseDir = repoRoot) {
+  const zipPath = resolve(baseDir, rawZipPath);
+  assert.ok(existsSync(zipPath), `Release ZIP not found: ${zipPath}`);
+
+  const extractedTempDir = mkdtempSync(resolve(tmpdir(), 'subtitleme-zip-extract-'));
+  try {
+    const extractedFiles = extractZipSafely(zipPath, extractedTempDir, {
+      forbiddenPatterns: FORBIDDEN_RELEASE_PATTERNS,
+    });
+
+    const manifestPath = resolve(extractedTempDir, 'manifest.json');
+    assert.ok(existsSync(manifestPath), `manifest.json not found at extension root: ${extractedTempDir}`);
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+    assert.equal(manifest.manifest_version, 3, 'Extracted manifest_version must be 3.');
+
+    const requiredFiles = [
+      manifest.action?.default_popup,
+      manifest.options_page,
+      manifest.background?.service_worker,
+      'content/index.js',
+      ...Object.values(manifest.icons ?? {}),
+      ...Object.values(manifest.action?.default_icon ?? {}),
+    ].filter(Boolean);
+
+    for (const relPath of requiredFiles) {
+      assert.ok(
+        existsSync(resolve(extractedTempDir, relPath)),
+        `Required extension file missing after ZIP extraction: ${relPath}`,
+      );
+    }
+
+    return { extractedTempDir, extractedFiles, manifest };
+  } catch (error) {
+    rmSync(extractedTempDir, { recursive: true, force: true });
+    throw error;
+  }
+}
+
 async function run() {
   let extensionDir = defaultDistDir;
   let extractedTempDir = null;
 
   if (process.env.RELEASE_ZIP) {
-    const zipPath = resolve(repoRoot, process.env.RELEASE_ZIP);
-    assert.ok(existsSync(zipPath), `Release ZIP not found: ${zipPath}`);
-    extractedTempDir = mkdtempSync(resolve(tmpdir(), 'subtitleme-zip-extract-'));
-    execFileSync('unzip', ['-q', zipPath, '-d', extractedTempDir]);
+    const prepared = prepareReleaseZipForE2E(process.env.RELEASE_ZIP, repoRoot);
+    extractedTempDir = prepared.extractedTempDir;
     extensionDir = extractedTempDir;
   }
 
