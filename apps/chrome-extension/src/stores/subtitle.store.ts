@@ -241,7 +241,11 @@ export const useSubtitleStore = defineStore('subtitle', () => {
   function getSlotSource(slot: SubtitleSlot): 'local' | 'player' | 'none' {
     const selected = slot === 'primary' ? primaryRecord.value : secondaryRecord.value;
     if (selected) return 'local';
-    if (playerStatus.value && playerStatus.value.nativeTracks.length > 0) {
+    const status = playerStatus.value;
+    if (!status || status.nativeTracks.length === 0) return 'none';
+    const selectedTrackId =
+      slot === 'primary' ? status.selectedPrimaryTrackId : status.selectedSecondaryTrackId;
+    if (selectedTrackId && !selectedTrackId.startsWith('runtime:')) {
       return 'player';
     }
     return 'none';

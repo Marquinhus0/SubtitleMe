@@ -31,7 +31,9 @@ export function convertNativeTrackToSubtitleTrack(
   index: number,
   playerId: string,
 ): SubtitleTrack {
-  const trackId = `native:${playerId}:${textTrack.id || `track-${index}`}`;
+  const rawId = textTrack.id?.trim();
+  const uniqueSuffix = rawId ? `${rawId}-${index}` : `track-${index}`;
+  const trackId = `native:${playerId}:${uniqueSuffix}`;
   const language = textTrack.language?.trim() || 'und';
   const label = textTrack.label?.trim() || `Track ${index + 1}`;
 
@@ -96,8 +98,9 @@ export class Html5VideoAdapter implements PlayerAdapter {
       const track = list[i];
       if (!track) continue;
       if (track.kind !== 'subtitles' && track.kind !== 'captions') continue;
+      const rawId = track.id?.trim();
       tracks.push({
-        id: track.id || `track-${i}`,
+        id: rawId ? `${rawId}-${i}` : `track-${i}`,
         language: track.language?.trim() || 'und',
         label: track.label?.trim() || `Track ${i + 1}`,
         kind: track.kind,

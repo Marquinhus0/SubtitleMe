@@ -1,10 +1,12 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest';
+import { createPinia, setActivePinia } from 'pinia';
 import {
   DEFAULT_SETTINGS,
   isValidExtensionMessage,
   type SubtitleTrack,
 } from '@subtitleme/shared-types';
+import { createTrackManager } from '@subtitleme/subtitle-core';
 import {
   PlayerDetector,
   scoreVideoCandidate,
@@ -14,6 +16,7 @@ import { NativeSubtitleObserver } from '../../apps/chrome-extension/src/content/
 import { OverlayManager } from '../../apps/chrome-extension/src/content/overlay-manager';
 import { PlayerLifecycleManager } from '../../apps/chrome-extension/src/content/player-lifecycle';
 import { isRestrictedTabUrl } from '../../apps/chrome-extension/src/services/tab-messaging';
+import { useSubtitleStore } from '../../apps/chrome-extension/src/stores/subtitle.store';
 
 function setRect(el: Element, width: number, height: number): void {
   Object.defineProperty(el, 'getBoundingClientRect', {
@@ -341,5 +344,322 @@ describe('Sprint 06 — PlayerLifecycleManager, Multi-Video Isolation & Messagin
     expect(isRestrictedTabUrl('chrome-extension://abc/popup.html')).toBe(true);
     expect(isRestrictedTabUrl('https://chromewebstore.google.com/detail/xyz')).toBe(true);
     expect(isRestrictedTabUrl('https://example.com/watch')).toBe(false);
+  });
+});
+
+describe('Sprint 22.5 — Native Dual Track Assignment & Regression (DEF-01..DEF-06)', () => {
+  function createHarnessVideo(options?: {
+    enMode?: TextTrackMode;
+    ptMode?: TextTrackMode;
+    enId?: string;
+    ptId?: string;
+  }) {
+    const container = document.createElement('div');
+    const video = document.createElement('video');
+    setRect(video, 720, 405);
+    container.appendChild(video);
+    document.body.appendChild(container);
+
+    const enTrack = createMockTextTrack({
+      id: options?.enId ?? 'en-track',
+      language: 'en',
+      label: 'English',
+      mode: options?.enMode ?? 'disabled',
+      cues: [
+        { id: '1', startTime: 0.1, endTime: 1.4, text: 'Two languages. One experience.' },
+        { id: '2', startTime: 1.6, endTime: 3.0, text: 'Synchronized dual subtitles in Chrome.' },
+      ],
+    });
+    const ptTrack = createMockTextTrack({
+      id: options?.ptId ?? 'pt-track',
+      language: 'pt-BR',
+      label: 'Português (Brasil)',
+      mode: options?.ptMode ?? 'disabled',
+      cues: [
+        { id: '1', startTime: 0.1, endTime: 1.4, text: 'Dois idiomas. Uma experiência.' },
+        { id: '2', startTime: 1.6, endTime: 3.0, text: 'Legendas duplas sincronizadas no Chrome.' },
+      ],
+    });
+
+    attachMockTextTracks(video, [enTrack, ptTrack]);
+    return { container, video, enTrack, ptTrack };
+  }
+
+  it('assigns English to primary and pt-BR to secondary with strict text isolation at 0.5s, 2.0s, 2x speed, pause, and ended', () => {
+    const { video, enTrack, ptTrack } = createHarnessVideo({
+      enMode: 'showing',
+      ptMode: 'disabled',
+    });
+
+    const lifecycle = new PlayerLifecycleManager({
+      root: document,
+      initialSettings: DEFAULT_SETTINGS,
+    });
+    lifecycle.start();
+
+    const session = lifecycle.getActiveSession();
+    expect(session).not.toBeNull();
+
+    // DEF-01: initially 'showing' track is suppressed to 'hidden' while overlay is active
+    expect(enTrack.mode).toBe('hidden');
+    expect(ptTrack.mode).toBe('hidden');
+
+    const shadow = session?.overlayManager.getHostElement()?.shadowRoot;
+
+    // Seek 0.5s -> exact harness strings in separate slots
+    video.currentTime = 0.5;
+    video.dispatchEvent(new Event('seeked'));
+    expect(shadow?.querySelector('[data-slot="primary"]')?.textContent).toBe(
+      'Two languages. One experience.',
+    );
+    expect(shadow?.querySelector('[data-slot="secondary"]')?.textContent).toBe(
+      'Dois idiomas. Uma experiência.',
+    );
+
+    // Seek 2.0s -> second cue pair strictly isolated
+    video.currentTime = 2.0;
+    video.dispatchEvent(new Event('seeked'));
+    expect(shadow?.querySelector('[data-slot="primary"]')?.textContent).toBe(
+      'Synchronized dual subtitles in Chrome.',
+    );
+    expect(shadow?.querySelector('[data-slot="secondary"]')?.textContent).toBe(
+      'Legendas duplas sincronizadas no Chrome.',
+    );
+
+    // Playback speed 2x + play/pause/ended
+    Object.defineProperty(video, 'playbackRate', { configurable: true, value: 2 });
+    Object.defineProperty(video, 'paused', { configurable: true, value: false });
+    video.dispatchEvent(new Event('ratechange'));
+    video.dispatchEvent(new Event('play'));
+    expect(session?.syncController.isRunning()).toBe(true);
+
+    Object.defineProperty(video, 'paused', { configurable: true, value: true });
+    video.dispatchEvent(new Event('pause'));
+    expect(session?.syncController.isRunning()).toBe(false);
+
+    Object.defineProperty(video, 'ended', { configurable: true, value: true });
+    video.dispatchEvent(new Event('ended'));
+    expect(shadow?.querySelector('[data-slot="primary"]')?.textContent).toBe('');
+    expect(shadow?.querySelector('[data-slot="secondary"]')?.textContent).toBe('');
+
+    // DEF-01: disabling extension restores originally 'showing' native track
+    lifecycle.applySettings({
+      ...DEFAULT_SETTINGS,
+      general: { ...DEFAULT_SETTINGS.general, enabled: false },
+    });
+    expect(enTrack.mode).toBe('showing');
+    expect(ptTrack.mode).toBe('hidden');
+
+    // Re-enabling suppresses again; dispose restores both original modes ('showing' & 'disabled')
+    lifecycle.applySettings(DEFAULT_SETTINGS);
+    expect(enTrack.mode).toBe('hidden');
+
+    lifecycle.dispose();
+    expect(enTrack.mode).toBe('showing');
+    expect(ptTrack.mode).toBe('disabled');
+  });
+
+  it('DEF-02: re-evaluates native tracks on dynamic language change while preserving local tracks and manual selections', () => {
+    const { video } = createHarnessVideo();
+    const lifecycle = new PlayerLifecycleManager({
+      root: document,
+      initialSettings: DEFAULT_SETTINGS,
+    });
+    lifecycle.start();
+
+    const session = lifecycle.getActiveSession();
+    const shadow = session?.overlayManager.getHostElement()?.shadowRoot;
+
+    video.currentTime = 0.5;
+    video.dispatchEvent(new Event('seeked'));
+    expect(shadow?.querySelector('[data-slot="primary"]')?.textContent).toBe(
+      'Two languages. One experience.',
+    );
+    expect(shadow?.querySelector('[data-slot="secondary"]')?.textContent).toBe(
+      'Dois idiomas. Uma experiência.',
+    );
+
+    // Swap defaultPrimaryLanguage <-> defaultSecondaryLanguage dynamically
+    lifecycle.applySettings({
+      ...DEFAULT_SETTINGS,
+      general: {
+        ...DEFAULT_SETTINGS.general,
+        defaultPrimaryLanguage: 'pt-BR',
+        defaultSecondaryLanguage: 'en',
+      },
+    });
+    expect(shadow?.querySelector('[data-slot="primary"]')?.textContent).toBe(
+      'Dois idiomas. Uma experiência.',
+    );
+    expect(shadow?.querySelector('[data-slot="secondary"]')?.textContent).toBe(
+      'Two languages. One experience.',
+    );
+
+    // Explicit manual selection on primary must NOT be overwritten by subsequent language change
+    const enTrackId = session?.trackManager.listTracks().find((t) => t.language === 'en')?.id ?? null;
+    expect(enTrackId).not.toBeNull();
+    // Clear secondary first so enTrackId is free for primary
+    lifecycle.handleMessage({
+      type: 'SELECT_TRACK',
+      payload: { slot: 'secondary', trackId: null },
+    });
+    lifecycle.handleMessage({
+      type: 'SELECT_TRACK',
+      payload: { slot: 'primary', trackId: enTrackId },
+    });
+    lifecycle.applySettings({
+      ...DEFAULT_SETTINGS,
+      general: {
+        ...DEFAULT_SETTINGS.general,
+        defaultPrimaryLanguage: 'pt-BR',
+        defaultSecondaryLanguage: 'pt-BR',
+      },
+    });
+    expect(session?.trackManager.getSelectedTrack('primary')?.id).toBe(enTrackId);
+
+    // Local track assigned to secondary must be preserved across default language changes
+    lifecycle.syncLocalTracks(
+      [
+        {
+          id: 'local-es',
+          language: 'es',
+          label: 'local-es.srt',
+          source: 'local',
+          offset: 0,
+          enabled: true,
+          cues: [{ id: '1', start: 100, end: 1400, text: 'Subtítulo local español' }],
+        },
+      ],
+      null,
+      'local-es',
+    );
+    lifecycle.applySettings({
+      ...DEFAULT_SETTINGS,
+      general: {
+        ...DEFAULT_SETTINGS.general,
+        defaultPrimaryLanguage: 'en',
+        defaultSecondaryLanguage: 'pt-BR',
+      },
+    });
+    expect(session?.trackManager.getSelectedTrack('secondary')?.source).toBe('local');
+    expect(shadow?.querySelector('[data-slot="secondary"]')?.textContent).toBe(
+      'Subtítulo local español',
+    );
+
+    lifecycle.dispose();
+  });
+
+  it('DEF-04 & DEF-05: handles duplicate native TextTrack IDs and prevents assigning the same track to both slots with independent offsets', () => {
+    createHarnessVideo({ enId: 'dup-id', ptId: 'dup-id' });
+    const lifecycle = new PlayerLifecycleManager({
+      root: document,
+      initialSettings: DEFAULT_SETTINGS,
+    });
+    lifecycle.start();
+
+    const session = lifecycle.getActiveSession();
+    const tracks = session?.trackManager.listTracks() ?? [];
+    expect(tracks).toHaveLength(2);
+    expect(tracks[0]?.id).not.toBe(tracks[1]?.id);
+
+    // DEF-05: TrackManager rejects assigning the same trackId to both primary and secondary
+    const tm = createTrackManager('isolation-test');
+    tm.registerTrack({
+      id: 't1',
+      language: 'en',
+      label: 'EN',
+      source: 'player',
+      offset: 0,
+      enabled: true,
+      cues: [{ id: 'c1', start: 1000, end: 2000, text: 'English cue' }],
+    });
+    tm.registerTrack({
+      id: 't2',
+      language: 'pt-BR',
+      label: 'PT',
+      source: 'player',
+      offset: 0,
+      enabled: true,
+      cues: [{ id: 'c1', start: 1000, end: 2000, text: 'Portuguese cue' }],
+    });
+
+    expect(tm.selectTrack('primary', 't1')).toBe(true);
+    expect(tm.selectTrack('secondary', 't1')).toBe(false);
+    expect(tm.getSelectedTrack('secondary')).toBeNull();
+    expect(tm.selectTrack('secondary', 't2')).toBe(true);
+
+    // Independent offset & enabled per slot
+    tm.setTrackOffset('primary', 500);
+    tm.setTrackOffset('secondary', -500);
+    expect(tm.getActiveCuesAt(1200).primary).toBeNull(); // 1200 - 500 = 700 (before 1000)
+    expect(tm.getActiveCuesAt(1200).secondary?.text).toBe('Portuguese cue'); // 1200 - (-500) = 1700
+
+    tm.setTrackEnabled('primary', false);
+    expect(tm.getSelectedTrack('secondary')?.enabled).toBe(true);
+
+    lifecycle.dispose();
+  });
+
+  it('DEF-06: updates snapshot when <track> fires load event and cleans up listeners on dispose', () => {
+    const video = document.createElement('video');
+    const trackEl = document.createElement('track');
+    video.appendChild(trackEl);
+    document.body.appendChild(video);
+
+    const cues: Array<{ id: string; startTime: number; endTime: number; text: string }> = [];
+    const track = createMockTextTrack({
+      id: 'async-en',
+      language: 'en',
+      label: 'English',
+      mode: 'disabled',
+      cues,
+    });
+    attachMockTextTracks(video, [track]);
+
+    let snapshots = 0;
+    let lastCueCount = 0;
+    const observer = new NativeSubtitleObserver(video, new Html5VideoAdapter(), 'p-load', (u) => {
+      snapshots += 1;
+      lastCueCount = u.tracks[0]?.cues.length ?? 0;
+    });
+
+    observer.start();
+    expect(lastCueCount).toBe(0);
+
+    // Simulate async WebVTT cues finishing load and <track> firing 'load'
+    cues.push({ id: '1', startTime: 0.1, endTime: 1.4, text: 'Loaded after VTT fetch' });
+    trackEl.dispatchEvent(new Event('load'));
+    expect(lastCueCount).toBe(1);
+
+    const beforeDispose = snapshots;
+    observer.dispose();
+    trackEl.dispatchEvent(new Event('load'));
+    expect(snapshots).toBe(beforeDispose);
+  });
+
+  it('DEF-03: getSlotSource reports player only when slot actually has a native track bound', () => {
+    setActivePinia(createPinia());
+    const store = useSubtitleStore();
+
+    store.setPlayerStatus({
+      status: 'detected',
+      videoCount: 1,
+      activeVideoIndex: 0,
+      activePlayerId: 'player-1',
+      extensionEnabled: true,
+      isFullscreen: false,
+      playbackRate: 1,
+      currentTimeMs: 500,
+      durationMs: 3000,
+      paused: false,
+      nativeTracks: [{ id: 'en-0', language: 'en', label: 'English', kind: 'subtitles', mode: 'hidden' }],
+      localTrackCount: 0,
+      selectedPrimaryTrackId: 'native:player-1:en-0',
+      selectedSecondaryTrackId: null,
+      hostname: '127.0.0.1',
+    });
+
+    expect(store.getSlotSource('primary')).toBe('player');
+    expect(store.getSlotSource('secondary')).toBe('none');
   });
 });

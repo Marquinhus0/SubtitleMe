@@ -35,6 +35,8 @@ export class NativeSubtitleObserver {
 
   private readonly originalModes = new WeakMap<TextTrack, TextTrackMode>();
   private readonly trackedTracks = new Set<TextTrack>();
+  private readonly trackedElements = new Set<HTMLTrackElement>();
+  private suppressionEnabled: boolean;
   private disposed = false;
 
   private readonly handleTrackListChange = (): void => {
@@ -48,18 +50,52 @@ export class NativeSubtitleObserver {
     this.emitSnapshot();
   };
 
+  private readonly handleTrackElementLoad = (): void => {
+    if (this.disposed) return;
+    this.syncBindings();
+    this.emitSnapshot();
+  };
+
   public constructor(
     video: HTMLVideoElement,
     adapter: PlayerAdapter,
     playerId: string,
     listener: NativeTracksListener,
-    options: { enableCueInspection?: boolean } = {},
+    options: { enableCueInspection?: boolean; suppressNativeShowing?: boolean } = {},
   ) {
     this.video = video;
     this.adapter = adapter;
     this.playerId = playerId;
     this.listener = listener;
     this.enableCueInspection = options.enableCueInspection ?? true;
+    this.suppressionEnabled = options.suppressNativeShowing ?? true;
+  }
+
+  public setSuppressionEnabled(enabled: boolean): void {
+    if (this.disposed || this.suppressionEnabled === enabled) return;
+    this.suppressionEnabled = enabled;
+
+    for (const track of this.trackedTracks) {
+      const originalMode = this.originalModes.get(track);
+      if (!enabled) {
+        if (originalMode === 'showing') {
+          try {
+            track.mode = 'showing';
+          } catch {
+            // Ignore read-only/restricted track implementations
+          }
+        }
+      } else if (track.mode === 'showing') {
+        if (!this.originalModes.has(track)) {
+          this.originalModes.set(track, 'showing');
+        }
+        try {
+          track.mode = 'hidden';
+        } catch {
+          // Ignore read-only/restricted track implementations
+        }
+      }
+    }
   }
 
   public start(): void {
@@ -115,16 +151,49 @@ export class NativeSubtitleObserver {
             track.addEventListener('cuechange', this.handleCueChange);
           }
 
-          // Switch 'disabled' -> 'hidden' once to let Chromium load accessible cues
-          if (this.enableCueInspection && track.mode === 'disabled') {
-            this.originalModes.set(track, 'disabled');
+          // Switch 'disabled' -> 'hidden' once to let Chromium load accessible cues,
+          // and suppress 'showing' -> 'hidden' while SubtitleMe overlay is active
+          if (
+            this.enableCueInspection &&
+            (track.mode === 'disabled' || (this.suppressionEnabled && track.mode === 'showing'))
+          ) {
+            if (!this.originalModes.has(track)) {
+              this.originalModes.set(track, track.mode);
+            }
             try {
               track.mode = 'hidden';
             } catch {
               // Ignore read-only/restricted track implementations
             }
           }
+        } else if (this.enableCueInspection && this.suppressionEnabled && track.mode === 'showing') {
+          if (!this.originalModes.has(track)) {
+            this.originalModes.set(track, 'showing');
+          }
+          try {
+            track.mode = 'hidden';
+          } catch {
+            // Ignore read-only/restricted track implementations
+          }
         }
+      }
+    }
+
+    // Bind 'load' listeners on <track> elements so async WebVTT loads trigger a snapshot update
+    const currentElements = new Set<HTMLTrackElement>();
+    if (typeof this.video.querySelectorAll === 'function') {
+      for (const el of Array.from(this.video.querySelectorAll('track'))) {
+        currentElements.add(el);
+        if (!this.trackedElements.has(el)) {
+          this.trackedElements.add(el);
+          el.addEventListener('load', this.handleTrackElementLoad);
+        }
+      }
+    }
+    for (const oldEl of Array.from(this.trackedElements)) {
+      if (!currentElements.has(oldEl)) {
+        oldEl.removeEventListener('load', this.handleTrackElementLoad);
+        this.trackedElements.delete(oldEl);
       }
     }
 
@@ -165,6 +234,11 @@ export class NativeSubtitleObserver {
       list.removeEventListener('addtrack', this.handleTrackListChange);
       list.removeEventListener('removetrack', this.handleTrackListChange);
       list.removeEventListener('change', this.handleTrackListChange);
+    }
+
+    for (const el of Array.from(this.trackedElements)) {
+      el.removeEventListener('load', this.handleTrackElementLoad);
+      this.trackedElements.delete(el);
     }
 
     for (const track of Array.from(this.trackedTracks)) {

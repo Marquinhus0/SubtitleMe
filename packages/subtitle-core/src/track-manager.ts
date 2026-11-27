@@ -136,6 +136,10 @@ export function createTrackManager(playerId = 'default'): TrackManager {
       if (!entries.has(trackId)) {
         return false;
       }
+      const otherSlot: SubtitleSlot = slot === 'primary' ? 'secondary' : 'primary';
+      if (selectedIds[otherSlot] === trackId) {
+        return false;
+      }
       selectedIds[slot] = trackId;
       return true;
     },

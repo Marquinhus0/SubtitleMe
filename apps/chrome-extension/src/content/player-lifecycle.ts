@@ -29,6 +29,7 @@ export interface PlayerSession extends DisposableSession {
   readonly syncController: SyncController;
   readonly overlayManager: OverlayManager;
   readonly nativeObserver: NativeSubtitleObserver;
+  readonly manualSelections: { primary: boolean; secondary: boolean };
   nativeSummaries: NativeTrackSummary[];
   lastSnapshot: ActiveCueSnapshot;
   renderCurrent(): void;
@@ -100,8 +101,17 @@ export class PlayerLifecycleManager {
   }
 
   public applySettings(nextSettings: SubtitleMeSettings): void {
+    const prevPrimaryLang = this.settings.general.defaultPrimaryLanguage;
+    const prevSecondaryLang = this.settings.general.defaultSecondaryLanguage;
     this.settings = sanitizeSettings(nextSettings);
+    const languagesChanged =
+      prevPrimaryLang !== this.settings.general.defaultPrimaryLanguage ||
+      prevSecondaryLang !== this.settings.general.defaultSecondaryLanguage;
+
     for (const session of this.registry.list()) {
+      if (languagesChanged) {
+        this.autoSelectNativeTracksForSession(session, true);
+      }
       this.applySettingsToSession(session);
     }
   }
@@ -169,6 +179,7 @@ export class PlayerLifecycleManager {
         session.nativeSummaries = update.summaries;
         this.applyNativeTracksToSession(session, update.tracks);
       },
+      { suppressNativeShowing: this.settings.general.enabled },
     );
 
     const session: PlayerSession = {
@@ -178,6 +189,7 @@ export class PlayerLifecycleManager {
       syncController,
       overlayManager,
       nativeObserver,
+      manualSelections: { primary: false, secondary: false },
       nativeSummaries: [],
       lastSnapshot: EMPTY_SNAPSHOT,
       renderCurrent: () => {
@@ -421,18 +433,21 @@ export class PlayerLifecycleManager {
     }
 
     if (message.type === 'SET_PRIMARY_TRACK') {
+      session.manualSelections.primary = message.payload.trackId !== null;
       session.trackManager.selectTrack('primary', message.payload.trackId);
       session.syncController.forceSync();
       return { ...baseOk, type: 'ACK' };
     }
 
     if (message.type === 'SET_SECONDARY_TRACK') {
+      session.manualSelections.secondary = message.payload.trackId !== null;
       session.trackManager.selectTrack('secondary', message.payload.trackId);
       session.syncController.forceSync();
       return { ...baseOk, type: 'ACK' };
     }
 
     if (message.type === 'SELECT_TRACK') {
+      session.manualSelections[message.payload.slot] = message.payload.trackId !== null;
       session.trackManager.selectTrack(message.payload.slot, message.payload.trackId);
       session.syncController.forceSync();
       return { ...baseOk, type: 'ACK' };
@@ -460,6 +475,7 @@ export class PlayerLifecycleManager {
   }
 
   private applySettingsToSession(session: PlayerSession): void {
+    session.nativeObserver.setSuppressionEnabled(this.settings.general.enabled);
     session.trackManager.setOrder(this.settings.general.subtitleOrder);
     session.trackManager.setTrackOffset('primary', this.settings.sync.primaryOffsetMs);
     session.trackManager.setTrackOffset('secondary', this.settings.sync.secondaryOffsetMs);
@@ -467,6 +483,78 @@ export class PlayerLifecycleManager {
     session.trackManager.setTrackEnabled('secondary', this.settings.general.secondaryEnabled);
     session.syncController.forceSync();
     session.renderCurrent();
+  }
+
+  private findBestNativeMatch(
+    nativeTracks: readonly SubtitleTrack[],
+    preferredLanguage: string,
+    excludeId?: string,
+  ): SubtitleTrack | undefined {
+    const normalized = preferredLanguage.trim().toLowerCase();
+    const base = normalized.slice(0, 2);
+    const eligible = nativeTracks.filter((t) => t.id !== excludeId);
+
+    const exact = eligible.find((t) => t.language.trim().toLowerCase() === normalized);
+    if (exact) return exact;
+
+    if (base.length > 0) {
+      const prefix = eligible.find((t) => t.language.trim().toLowerCase().startsWith(base));
+      if (prefix) return prefix;
+    }
+    return undefined;
+  }
+
+  private autoSelectNativeTracksForSession(
+    session: PlayerSession,
+    forceReevaluate: boolean,
+  ): void {
+    const nativeTracks = session.trackManager
+      .listTracks()
+      .filter((track) => track.source === 'player');
+    if (nativeTracks.length === 0) return;
+
+    const currentPrimary = session.trackManager.getSelectedTrack('primary');
+    const canAutoPrimary =
+      !session.manualSelections.primary &&
+      currentPrimary?.source !== 'local' &&
+      (forceReevaluate || !currentPrimary);
+
+    const currentSecondary = session.trackManager.getSelectedTrack('secondary');
+    const canAutoSecondary =
+      !session.manualSelections.secondary &&
+      currentSecondary?.source !== 'local' &&
+      (forceReevaluate || !currentSecondary);
+
+    // Clear auto-selected native slots before re-evaluating so swapping languages cannot collide
+    if (forceReevaluate) {
+      if (canAutoPrimary) session.trackManager.selectTrack('primary', null);
+      if (canAutoSecondary) session.trackManager.selectTrack('secondary', null);
+    }
+
+    if (canAutoPrimary) {
+      const secondaryId = session.trackManager.getSelectedTrack('secondary')?.id;
+      const match =
+        this.findBestNativeMatch(
+          nativeTracks,
+          this.settings.general.defaultPrimaryLanguage,
+          secondaryId,
+        ) ?? nativeTracks.find((t) => t.id !== secondaryId);
+      if (match) {
+        session.trackManager.selectTrack('primary', match.id);
+      }
+    }
+
+    if (canAutoSecondary) {
+      const primaryId = session.trackManager.getSelectedTrack('primary')?.id;
+      const match = this.findBestNativeMatch(
+        nativeTracks,
+        this.settings.general.defaultSecondaryLanguage,
+        primaryId,
+      );
+      if (match) {
+        session.trackManager.selectTrack('secondary', match.id);
+      }
+    }
   }
 
   private applyNativeTracksToSession(session: PlayerSession, nativeTracks: SubtitleTrack[]): void {
@@ -486,37 +574,17 @@ export class PlayerLifecycleManager {
 
     for (const existing of session.trackManager.listTracks()) {
       if (existing.source === 'player' && !incomingIds.has(existing.id)) {
+        if (session.trackManager.getSelectedTrack('primary')?.id === existing.id) {
+          session.manualSelections.primary = false;
+        }
+        if (session.trackManager.getSelectedTrack('secondary')?.id === existing.id) {
+          session.manualSelections.secondary = false;
+        }
         session.trackManager.removeTrack(existing.id);
       }
     }
 
-    // Auto-select matching default language native tracks when a slot is empty
-    if (!session.trackManager.getSelectedTrack('primary')) {
-      const match =
-        nativeTracks.find((t) =>
-          t.language.toLowerCase().startsWith(
-            this.settings.general.defaultPrimaryLanguage.toLowerCase().slice(0, 2),
-          ),
-        ) ?? nativeTracks[0];
-      if (match) {
-        session.trackManager.selectTrack('primary', match.id);
-      }
-    }
-
-    if (!session.trackManager.getSelectedTrack('secondary')) {
-      const primaryId = session.trackManager.getSelectedTrack('primary')?.id;
-      const match = nativeTracks.find(
-        (t) =>
-          t.id !== primaryId &&
-          t.language
-            .toLowerCase()
-            .startsWith(this.settings.general.defaultSecondaryLanguage.toLowerCase().slice(0, 2)),
-      );
-      if (match) {
-        session.trackManager.selectTrack('secondary', match.id);
-      }
-    }
-
+    this.autoSelectNativeTracksForSession(session, false);
     this.applySettingsToSession(session);
   }
 
