@@ -11,7 +11,7 @@
 **Two languages. One experience.**
 
 ### Short Description (<= 132 characters)
-Display two independent subtitle tracks simultaneously on compatible HTML5 video players with local .srt/.vtt import and full privacy.
+Display two independent subtitle tracks simultaneously on compatible HTML5 video players with local .srt/.vtt import.
 
 ### Detailed Description
 SubtitleMe lets you watch compatible HTML5 videos with two subtitle tracks displayed simultaneously—ideal for language learners, bilingual households, and international viewers.
@@ -25,7 +25,9 @@ SubtitleMe lets you watch compatible HTML5 videos with two subtitle tracks displ
 - **100% Local & Privacy-First**: No account, no backend, no analytics, and no external subtitle uploads. Settings stay in `chrome.storage.local` and imported subtitle files stay in your browser's IndexedDB.
 
 **Known Limitations**
-- Not all video players expose subtitles through the standard HTML5 `TextTrack` API; closed or canvas-based players may require importing local `.srt` or `.vtt` files.
+- Validated on controlled HTML5 `<video>` players exposing standard `TextTrack` subtitles and via local `.srt`/`.vtt` import.
+- Commercial streaming platforms (such as Netflix, YouTube, Prime Video, Disney+, and HBO Max) are not yet validated and often use custom non-`TextTrack` renderers; universal compatibility is not guaranteed.
+- Players embedded inside cross-origin `<iframe>` elements and canvas-based subtitle renderers are not supported for native capture in v1.0.0.
 - SubtitleMe never bypasses DRM or extracts protected media streams.
 - Fullscreen overlays are supported on player container wrappers; bare `<video>`-element fullscreen has browser-imposed DOM limitations.
 
@@ -33,7 +35,7 @@ SubtitleMe lets you watch compatible HTML5 videos with two subtitle tracks displ
 - All settings and imported subtitle files are processed and stored strictly locally on your device.
 - No subtitle files are ever uploaded externally.
 - No telemetry, browsing history, or viewing history is collected.
-- Least-privilege permissions (`storage`, `activeTab`, `scripting`, and optional user-granted host permissions).
+- Least-privilege permissions (`storage`, `activeTab`, and `scripting`).
 
 ---
 
@@ -46,7 +48,7 @@ SubtitleMe lets you watch compatible HTML5 videos with two subtitle tracks displ
 **Dois idiomas. Uma experiência.**
 
 ### Descrição Curta (<= 132 caracteres)
-Exiba duas legendas simultâneas em players de vídeo HTML5 compatíveis com importação local de .srt/.vtt e privacidade total.
+Exiba duas legendas simultâneas em players HTML5 compatíveis com importação local de .srt/.vtt e privacidade total.
 
 ### Descrição Completa
 O SubtitleMe permite assistir a vídeos HTML5 compatíveis com duas faixas de legenda exibidas ao mesmo tempo — ideal para quem estuda idiomas, famílias bilíngues e espectadores de conteúdo internacional.
@@ -60,7 +62,9 @@ O SubtitleMe permite assistir a vídeos HTML5 compatíveis com duas faixas de le
 - **100% Local e Privado**: Sem conta, sem backend, sem telemetria e sem envio externo de legendas. Tudo permanece salvo apenas no seu navegador (`chrome.storage.local` e IndexedDB).
 
 **Limitações Conhecidas**
-- Nem todos os players expõem legendas via API padrão HTML5 `TextTrack`; players fechados ou baseados em canvas podem exigir arquivos `.srt` ou `.vtt` locais.
+- Validado em players HTML5 `<video>` controlados com faixas `TextTrack` padrão e via importação local `.srt`/`.vtt`.
+- Plataformas comerciais de streaming (como Netflix, YouTube, Prime Video, Disney+ e HBO Max) ainda não foram validadas e frequentemente usam renderizadores proprietários fora de `TextTrack`; não há garantia de compatibilidade universal.
+- Players embutidos em `<iframe>` cross-origin e legendas renderizadas em canvas não são suportados para captura nativa na v1.0.0.
 - O SubtitleMe não contorna DRM nem extrai mídias protegidas.
 - Overlays em tela cheia funcionam em containers do player; tela cheia diretamente no elemento `<video>` possui limitações impostas pelo próprio navegador.
 
@@ -68,4 +72,4 @@ O SubtitleMe permite assistir a vídeos HTML5 compatíveis com duas faixas de le
 - Todos os dados e arquivos de legenda são processados e armazenados apenas localmente no seu dispositivo.
 - Nenhum arquivo de legenda é enviado para servidores externos.
 - Nenhuma telemetria, histórico de navegação ou histórico de vídeos é coletado.
-- Permissões de privilégio mínimo (`storage`, `activeTab`, `scripting` e permissões opcionais de host).
+- Permissões de privilégio mínimo (`storage`, `activeTab` e `scripting`).

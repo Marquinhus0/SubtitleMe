@@ -59,7 +59,7 @@ export const ptBR: Record<TranslationKey, string> = {
   'popup.selectLocalFile': 'Legenda local atribuída',
   'popup.noLocalAssigned': 'Nenhuma selecionada',
   'popup.noLocalLibrary': 'Nenhum arquivo local importado ainda. Importe .srt ou .vtt nas Configurações.',
-  'popup.sprintNotice': 'A integração ao vivo com players HTML5 está programada para a Sprint 06.',
+  'popup.sprintNotice': 'Processamento 100% local — sem conta, telemetria ou envios externos.',
 
   // File importer & preview
   'importer.dropPrompt': 'Arraste e solte um arquivo .srt ou .vtt aqui, ou clique para selecionar',
@@ -188,7 +188,7 @@ export const ptBR: Record<TranslationKey, string> = {
   // Section 6: Keyboard Shortcuts
   'settings.shortcuts.title': 'Atalhos de Teclado',
   'settings.shortcuts.description': 'Combinações padrão planejadas para ajustes rápidos durante a reprodução.',
-  'settings.shortcuts.notRegisteredNotice': 'Nota: Os comandos de teclado do navegador (chrome.commands) ainda não estão registrados. Os atalhos abaixo representam os padrões planejados e serão integrados na Sprint 06.',
+  'settings.shortcuts.notRegisteredNotice': 'Nota: Comandos globais de teclado do navegador (chrome.commands) estão planejados para uma versão futura. A tabela abaixo exibe os atalhos padrão de referência.',
   'settings.shortcuts.actionHeader': 'Ação',
   'settings.shortcuts.keysHeader': 'Atalho Padrão',
   'settings.shortcuts.toggleExtension': 'Ativar/desativar SubtitleMe',

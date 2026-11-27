@@ -57,7 +57,7 @@ export const en = {
   'popup.selectLocalFile': 'Assigned local subtitle',
   'popup.noLocalAssigned': 'None selected',
   'popup.noLocalLibrary': 'No local subtitle files imported yet. Import .srt or .vtt in Settings.',
-  'popup.sprintNotice': 'Live HTML5 player integration is scheduled for Sprint 06.',
+  'popup.sprintNotice': '100% local processing — no account, analytics, or external uploads.',
 
   // File importer & preview
   'importer.dropPrompt': 'Drag & drop an .srt or .vtt file here, or click to browse',
@@ -186,7 +186,7 @@ export const en = {
   // Section 6: Keyboard Shortcuts
   'settings.shortcuts.title': 'Keyboard Shortcuts',
   'settings.shortcuts.description': 'Default key combinations planned for quick playback and subtitle adjustments.',
-  'settings.shortcuts.notRegisteredNotice': 'Note: Browser-level keyboard commands (chrome.commands) are not registered yet. Keybindings shown below reflect the planned defaults and will be wired in Sprint 06.',
+  'settings.shortcuts.notRegisteredNotice': 'Note: Global browser keyboard commands (chrome.commands) are planned for a future release. The reference table below shows the default keybindings.',
   'settings.shortcuts.actionHeader': 'Action',
   'settings.shortcuts.keysHeader': 'Default Shortcut',
   'settings.shortcuts.toggleExtension': 'Toggle SubtitleMe on/off',
